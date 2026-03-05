@@ -59,6 +59,9 @@ docker run --rm -it \
   --volume $HOME/.config/ytm-tui:/root/.config/ytm-tui \
   --device /dev/snd \
   --name ytm ytm-tui tui
+
+# Minimal CLI-only smoke test (Alpine image)
+./minimum-build.sh "milk-v duo"
 ```
 
 > Note: audio inside Docker often needs PulseAudio/ALSA passthrough; adjust flags for your setup (e.g., `-e PULSE_SERVER`).

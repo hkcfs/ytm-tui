@@ -32,8 +32,10 @@ The project implements the full "YTM TUI" spec:
 Install these on the host (Docker image already includes them):
 
 - `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`
+- `mpv` runtime deps (ALSA/Pulse) and `socat` (already listed) for IPC
 - Kitty terminal (optional) for thumbnails
 - Keep `yt-dlp` current (`yt-dlp -U`). The Docker image fetches the latest release binary automatically; host installs should be updated manually.
+- The release `ytm` binary is CGO-disabled (Go 1.26) *and* embeds `ytm-tui.sh`, so no external shell script is required at runtime.
 
 ## CLI usage
 
@@ -149,6 +151,6 @@ Enjoy the tunes! 🎧
 
 ## CI / Releases
 
-- `build-static-bin.sh` powers the release packaging: it runs inside a Dockerized Go toolchain, emits a static binary, bundles `ytm-tui.sh`, and drops the compressed artifact plus `.sha256` into `dist/`.
+- `build-static-bin.sh` powers the release packaging: it runs inside a Dockerized Go 1.26 toolchain, emits a single static binary, and drops the compressed artifact plus `.sha256` into `dist/`.
 - `.github/workflows/release.yml` runs automatically on tags matching `v*`, invokes the script, and uploads the tarball/checksum to the GitHub Release page.
 - Release artifacts contain just the `ytm` binary (plus checksum) because the embedded TUI script travels inside the executable.

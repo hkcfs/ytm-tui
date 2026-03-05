@@ -2,6 +2,8 @@
 
 Go-backed CLI plus Bash/fzf TUI for searching, queueing, and playing YouTube audio with `yt-dlp` + `mpv`. Think of it as a batteries-included, `ytfzf`-inspired workspace that exposes both `ytm search` (CLI) and `ytm tui` (full-screen) entry points.
 
+For a step-by-step walkthrough, jump to [How To Use](#how-to-use).
+
 ## Highlights
 
 - **True dual-mode:** `ytm search <query>` for quick CLI flows and `ytm tui` for the persistent-pane experience.
@@ -60,6 +62,34 @@ Flags worth knowing:
 | `ytm search [query]` | Fetches YouTube results via `yt-dlp`, optionally pipes through `fzf`, and prints or plays selections. Works non-interactively when `--no-fzf` is set. | `-l/--limit`, `--play`, `--format`, `--no-history`, `--no-fzf` |
 | `ytm tui` | Launches the Bash/fzf TUI (`scripts/ytm-tui.sh`) inside the current environment. In Docker this script is pre-copied into `/usr/local/share/ytm/`. | Honors env vars such as `YTM_CONFIG_DIR`, `YTM_YTDLP_ARGS`, `KITTY_WINDOW_ID` |
 | `ytm --help` | Shows the Cobra command tree, including any additional subcommands you may add later. | `-v/--verbose` toggles extra logging |
+
+## How To Use
+
+1. **Install dependencies** (native host or Docker): `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`, plus ALSA/Pulse libraries so `mpv` can play audio. Kitty terminal support is optional but required for in-pane thumbnails.
+2. **Configure yt-dlp if needed:** keep it updated (`yt-dlp -U`). If your region requires cookies or PO tokens, set `YTM_YTDLP_ARGS` / `YTM_YTDLP_EXTRACTOR_ARGS` before running `ytm`. Example: `export YTM_YTDLP_ARGS="--cookies-from-browser firefox"`.
+3. **Run the CLI for quick searches:**
+   - `ytm search "lofi chill"` launches `fzf` for selection.
+   - `ytm search --no-fzf --no-history` prints results directly (good for scripting or testing).
+   - `ytm search --play --limit 50` enqueues selections straight into `mpv`.
+4. **Launch the full TUI:** `ytm tui` (or `docker run --rm -it ... ytm-tui tui`). The persistent layout contains:
+   - Header showing the current section.
+   - Left pane with `fzf` menus (Search, Playlists, Settings).
+   - Right pane preview: thumbnails + metadata during search, or playback info + progress bar when mpv is running.
+   - Footer with key hints. Controls include `p`/Space (pause), `>`/`<` (next/prev), arrows for ±10s seek, `q` to exit player.
+5. **Manage playlists:** TUI → *Playlists* → choose action (Create/Edit/Delete/Play). During edit:
+   - *Add Videos* reuses the Search UI and appends `URL | Title` lines to the chosen `.list` file.
+   - *Delete Videos* lets you multi-select entries to drop.
+   - *Reorder* binds Alt-↑/↓ to move lines (fzf reloads live).
+6. **Adjust settings:** TUI → *Settings* toggles `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`. Changes persist immediately to `~/.config/ytm-tui/settings.conf`. The Go CLI reads the same file when deciding defaults.
+7. **Understand storage:**
+   - Settings/history/playlists live under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`).
+   - Temporary sockets/thumbnails are created in `/tmp/ytm-tui` or `$TMPDIR` and cleaned up automatically.
+8. **Use Docker when convenient:**
+   - Full stack: `docker build -t ytm-tui .` then `docker run --rm -it -v $HOME/.config/ytm-tui:/root/.config/ytm-tui --device /dev/snd ytm-tui tui`.
+   - Minimal smoke test: `./minimum-build.sh "milk-v duo"` (Alpine CLI only, verifies search results without mpv/fzf).
+9. **Ship releases:** `TARGET_TRIPLE=linux/amd64 ./build-static-bin.sh` produces a tarball in `dist/` containing the static `ytm` binary + checksum. Tagging `v*` triggers the GitHub Actions release workflow automatically.
+
+> Tip: If you only need search output (no audio), run `ytm search --no-fzf` inside any shell—even in CI containers lacking `mpv` or `fzf`.
 
 ## TUI quick reference
 

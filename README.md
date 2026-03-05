@@ -37,6 +37,14 @@ Flags worth knowing:
 - `--no-fzf` – dump raw lines instead of invoking `fzf`.
 - `--play` / `--format <yt-dlp fmt>` – enqueue picks into `mpv` directly.
 
+### CLI command reference
+
+| Command | Description | Notable flags |
+|---------|-------------|---------------|
+| `ytm search [query]` | Fetches YouTube results via `yt-dlp`, optionally pipes through `fzf`, and prints or plays selections. Works non-interactively when `--no-fzf` is set. | `-l/--limit`, `--play`, `--format`, `--no-history`, `--no-fzf` |
+| `ytm tui` | Launches the Bash/fzf TUI (`scripts/ytm-tui.sh`) inside the current environment. In Docker this script is pre-copied into `/usr/local/share/ytm/`. | Honors env vars such as `YTM_CONFIG_DIR`, `YTM_YTDLP_ARGS`, `KITTY_WINDOW_ID` |
+| `ytm --help` | Shows the Cobra command tree, including any additional subcommands you may add later. | `-v/--verbose` toggles extra logging |
+
 ## TUI quick reference
 
 - **Main menu:** Search / Playlists / Settings / Quit.
@@ -46,6 +54,22 @@ Flags worth knowing:
 - **Settings:** interactive toggles for result count, history, thumbnails.
 
 All state lives under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`). Files include `settings.conf`, `history.log`, and `playlists/*.list` (`URL | Title` per line).
+
+### Data & Storage Layout
+
+```
+~/.config/ytm-tui (or $YTM_CONFIG_DIR)
+├── settings.conf        # SEARCH_RESULTS / USE_HISTORY / SHOW_THUMBNAILS knobs
+├── history.log          # One search query per line (newest at bottom)
+└── playlists/
+    ├── chill.list       # Plain text playlist, `URL | Title` each line
+    └── commute.list
+```
+
+- **Playlists:** Managed entirely by the TUI playlist menu. Each `.list` file can be edited manually; the format is simple (`https://youtu... | Track Title`). The TUI supports create/edit/delete/reorder/multi-add operations that directly mutate these files.
+- **Config overrides:** Set `YTM_CONFIG_DIR=/path/to/custom-dir` before launching the CLI or TUI to relocate the whole tree (useful for Docker bind-mounts).
+- **History:** Respecting `USE_HISTORY`, the CLI/TUI append successful queries to `history.log`. Disable via Settings or pass `--no-history` on `ytm search`.
+- **Temporary sockets:** MPV IPC sockets live under `/tmp/ytm-tui/` (or the platform temp dir) and are cleared automatically on exit.
 
 ## Docker workflow
 

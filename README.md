@@ -31,13 +31,21 @@ The project implements the full "YTM TUI" spec:
 
 ## Runtime Dependencies
 
-Install these on the host (Docker image already includes them):
-
-- `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`
-- `mpv` runtime deps (ALSA/Pulse) and `socat` (already listed) for IPC
-- Kitty terminal (optional) for thumbnails
-- Keep `yt-dlp` current (`yt-dlp -U`). The Docker image fetches the latest release binary automatically; host installs should be updated manually.
-- The release `ytm` binary is CGO-disabled (Go 1.26) *and* embeds `ytm-tui.sh`, so no external shell script is required at runtime.
+- **Required binaries** (host or container):
+  1. `fzf` – interactive selection UI
+  2. `yt-dlp` – search + metadata (keep it updated via `yt-dlp -U`)
+  3. `mpv` – audio playback (plus ALSA/Pulse libraries)
+  4. `socat` – mpv IPC bridge
+  5. `jq` – JSON parsing in the TUI
+  6. `curl` – thumbnail downloads & helper requests
+  7. `tput`/`ncurses` – terminal control
+  8. `bash` – runs the embedded TUI script
+- **Optional extras:**
+  - Kitty terminal (`KITTY_WINDOW_ID`) for GPU thumbnails.
+  - Image renderers tried in order: Kitty icat → `chafa` → `viu` → `jp2a` → `img2txt`.
+  - JavaScript runtime for yt-dlp (`--js-rt`), e.g., Node, QuickJS, Deno, Bun. Set via `YTM_YTDLP_ARGS`.
+- **Binary layout:** Released `ytm` is CGO-disabled (Go 1.26) and embeds `ytm-tui.sh`. No companion scripts are required on disk.
+- **Config & overrides:** `settings.conf` stores `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`, `YTM_LEGACY_MODE`, `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`; every run of either CLI or TUI reads the same file.
 - Environment overrides such as `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`, and `YTM_LEGACY_MODE` can be set as environment variables or persisted via the TUI settings menu (they live in `settings.conf`).
 
 ## CLI usage

@@ -131,7 +131,7 @@ search_videos() {
 	[[ -n "$query" ]] || return 1
 	local tmp_json
 	tmp_json=$(mktemp)
-	yt-dlp --dump-json --skip-download --no-playlist --default-search ytsearch "ytsearch${SEARCH_RESULTS}:${query}" \
+	yt-dlp --dump-json --skip-download --no-playlist --default-search ytsearch --extractor-args "youtube:player_client=android" "ytsearch${SEARCH_RESULTS}:${query}" \
 		| jq -s 'map(select(((.duration // 0) > 65) and (.webpage_url | contains("/shorts/") | not)))' >"$tmp_json"
 	mapfile -t RESULTS < <(jq -r 'to_entries[] | "\(.key)\t\(.value.title)\t\(.value.uploader)\t\(.value.duration_string // "??")\t\(.value.view_count // 0)\t\(.value.webpage_url)\t\(.value.thumbnail // "")"' "$tmp_json")
 	rm -f "$tmp_json"
@@ -167,7 +167,7 @@ PVS
 
 select_format() {
 	local url="$1"
-	mapfile -t FORMATS < <(yt-dlp --dump-json --skip-download "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"')
+	mapfile -t FORMATS < <(yt-dlp --dump-json --skip-download --extractor-args "youtube:player_client=android" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"')
 	if [[ ${#FORMATS[@]} -eq 0 ]]; then
 		FORMAT_ID="bestaudio"
 		return

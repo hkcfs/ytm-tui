@@ -14,6 +14,8 @@ import (
 )
 
 // Video mirrors the structured search results we display.
+const ytDLPExtractorArgs = "youtube:player_client=android"
+
 type Video struct {
 	ID              string      `json:"id"`
 	Title           string      `json:"title"`
@@ -57,6 +59,7 @@ func Search(query string, limit int) ([]Video, error) {
 		"--skip-download",
 		"--no-playlist",
 		"--default-search", "ytsearch",
+		"--extractor-args", ytDLPExtractorArgs,
 		arg,
 	)
 	stdout, err := cmd.StdoutPipe()
@@ -99,6 +102,7 @@ func Formats(url string) ([]Format, error) {
 		"yt-dlp",
 		"--dump-json",
 		"--skip-download",
+		"--extractor-args", ytDLPExtractorArgs,
 		url,
 	)
 	out, err := cmd.Output()

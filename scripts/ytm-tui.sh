@@ -353,66 +353,62 @@ search_videos() {
 }
 
 fzf_select() {
-	local preview_script
-preview_script=$(cat <<'PVS'
+	local preview_file
+	preview_file=$(mktemp)
+	cat >"$preview_file" <<'PVS'
+#!/usr/bin/env bash
+set -euo pipefail
 function human(){
 	local n=$1
 	if (( n > 1000000 )); then printf "%.1fM" "$(awk -v n=$n 'BEGIN{print n/1000000}')"; elif (( n > 1000 )); then printf "%.1fk" "$(awk -v n=$n 'BEGIN{print n/1000}')"; else printf "%s" "$n"; fi
 }
-IFS=$'\t' read -r idx title channel duration views url thumb <<<"{}"
+line="$1"
+IFS=$'\t' read -r idx title channel duration views url thumb <<<"$line"
 printf "Index: %s\nTitle: %s\nChannel: %s\nDuration: %s\nViews: %s\nURL: %s\n\n" "$idx" "$title" "$channel" "$duration" "$(human "$views")" "$url"
-if [[ "$SHOW_THUMBNAILS" == "1" && -n "$thumb" && "$THUMB_RENDERER" != "none" ]]; then
+if [[ "${SHOW_THUMBNAILS:-0}" == "1" && -n "${thumb:-}" && "${THUMB_RENDERER:-none}" != "none" ]]; then
 	cache="${TMPDIR:-/tmp}/ytm-thumb-$idx.jpg"
 	if [[ ! -f "$cache" ]]; then
-		curl -sL "$thumb" -o "$cache"
+		curl -sL "$thumb" -o "$cache" 2>/dev/null || true
 	fi
-	case "$THUMB_RENDERER" in
+	case "${THUMB_RENDERER:-none}" in
 		kitty)
-			kitty +kitten icat --place=40x20@0x0 "$cache" 2>/dev/null
-			printf '\n'
+			kitty +kitten icat --place=40x20@0x0 "$cache" 2>/dev/null || true
 			;;
 		wezterm)
 			wezterm imgcat --height 20 --width 40 "$cache" 2>/dev/null || true
-			printf '\n'
 			;;
 		icat)
 			icat "$cache" 2>/dev/null || true
-			printf '\n'
 			;;
 		img2sixel)
 			img2sixel "$cache" 2>/dev/null || true
-			printf '\n'
 			;;
 		chafa)
-			chafa --size=40x20 "$cache"
-			printf '\n'
+			chafa --size=40x20 "$cache" 2>/dev/null || true
 			;;
 		viu)
-			viu -t 20 -w 40 "$cache" 2>/dev/null
-			printf '\n'
+			viu -t 20 -w 40 "$cache" 2>/dev/null || true
 			;;
 		jp2a)
-			jp2a --width=40 --height=20 "$cache"
-			printf '\n'
+			jp2a --width=40 --height=20 "$cache" 2>/dev/null || true
 			;;
 		img2txt)
-			img2txt -W 40 "$cache"
-			printf '\n'
+			img2txt -W 40 "$cache" 2>/dev/null || true
 			;;
 		esac
 else
 	printf "(Thumbnails disabled or renderer unavailable)\n"
 fi
 PVS
-)
+	chmod +x "$preview_file"
 	local selection_file
 	selection_file=$(mktemp)
 	printf '%s\n' "${RESULTS[@]}" | \
 	fzf --multi --prompt="ytm search > " --bind 'esc:abort' \
-		--preview "SHOW_THUMBNAILS=${SHOW_THUMBNAILS} HAVE_KITTY=${HAVE_KITTY} THUMB_RENDERER=${THUMB_RENDERER} TMPDIR=${TMPDIR:-/tmp} KITTY_WINDOW_ID=${KITTY_WINDOW_ID:-} bash -c '$preview_script'" \
+		--preview "SHOW_THUMBNAILS=${SHOW_THUMBNAILS} THUMB_RENDERER=${THUMB_RENDERER} TMPDIR=${TMPDIR:-/tmp} KITTY_WINDOW_ID=${KITTY_WINDOW_ID:-} bash \"$preview_file\" {}" \
 		--preview-window=right,60% >"$selection_file"
 	mapfile -t SELECTION <"$selection_file"
-	rm -f "$selection_file"
+	rm -f "$selection_file" "$preview_file"
 }
 
 select_format() {
@@ -432,7 +428,10 @@ select_format() {
 		return
 	fi
 	local format_preview
-	format_preview=$(cat <<'FPR'
+	format_preview=$(mktemp)
+	cat >"$format_preview" <<'FPR'
+#!/usr/bin/env bash
+set -euo pipefail
 function human(){
 	local n=$1
 	if (( n <= 0 )); then printf "unknown"; return; fi
@@ -444,16 +443,18 @@ function human(){
 	done
 	printf "%d%s" "$n" "${units[$i]}"
 }
-IFS=$'\t' read -r id ext br size note <<<"{}"
+line="$1"
+IFS=$'\t' read -r id ext br size note <<<"$line"
 printf "Format: %s\nExt: %s\nBitrate: %s\nSize: %s\nInfo: %s\n" "$id" "$ext" "$br" "$(human "$size")" "$note"
 FPR
-)
+	chmod +x "$format_preview"
 	FORMAT_ID=$(printf '%s\n' "${FORMATS[@]}" | \
 	fzf --prompt="audio format > " \
 		--with-nth=1,2,3,5 \
 		--delimiter='\t' \
-		--preview "bash -c '$format_preview'" \
+		--preview "bash \"$format_preview\" {}" \
 		--preview-window=right,50% | cut -f1)
+	rm -f "$format_preview"
 	FORMAT_ID=${FORMAT_ID:-bestaudio}
 }
 

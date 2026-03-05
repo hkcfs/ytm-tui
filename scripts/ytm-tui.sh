@@ -116,6 +116,12 @@ select_thumbnail_renderer() {
 	if [[ "$SHOW_THUMBNAILS" == "1" ]]; then
 		if [[ "$HAVE_KITTY" == "1" && -n "$KITTY_WINDOW_ID" ]]; then
 			THUMB_RENDERER="kitty"
+		elif command -v wezterm >/dev/null 2>&1; then
+			THUMB_RENDERER="wezterm"
+		elif command -v icat >/dev/null 2>&1; then
+			THUMB_RENDERER="icat"
+		elif command -v img2sixel >/dev/null 2>&1; then
+			THUMB_RENDERER="img2sixel"
 		elif command -v chafa >/dev/null 2>&1; then
 			THUMB_RENDERER="chafa"
 		elif command -v viu >/dev/null 2>&1; then
@@ -207,6 +213,18 @@ if [[ "$SHOW_THUMBNAILS" == "1" && -n "$thumb" && "$THUMB_RENDERER" != "none" ]]
 	case "$THUMB_RENDERER" in
 		kitty)
 			kitty +kitten icat --place=40x20@0x0 "$cache" 2>/dev/null
+			printf '\n'
+			;;
+		wezterm)
+			wezterm imgcat --height 20 --width 40 "$cache" 2>/dev/null || true
+			printf '\n'
+			;;
+		icat)
+			icat "$cache" 2>/dev/null || true
+			printf '\n'
+			;;
+		img2sixel)
+			img2sixel "$cache" 2>/dev/null || true
 			printf '\n'
 			;;
 		chafa)

@@ -23,7 +23,7 @@ type Options struct {
 	Legacy        bool
 }
 
-func applyDefaults(opts Options) Options {
+func (opts Options) applyDefaults() Options {
 	if opts.ExtractorArgs == "" && !opts.Legacy {
 		opts.ExtractorArgs = defaultExtractorArgs
 	}
@@ -63,7 +63,7 @@ var shortsRegex = regexp.MustCompile(`/shorts/`)
 
 // Search queries YouTube through yt-dlp and returns a filtered list of videos, omitting shorts.
 func Search(query string, limit int, opts Options) ([]Video, error) {
-	opts = applyDefaults(opts)
+	opts = opts.applyDefaults()
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("query cannot be empty")
 	}
@@ -117,7 +117,7 @@ func Search(query string, limit int, opts Options) ([]Video, error) {
 
 // Formats fetches available audio-only formats for the given URL.
 func Formats(url string, opts Options) ([]Format, error) {
-	opts = applyDefaults(opts)
+	opts = opts.applyDefaults()
 	args := []string{"--dump-json", "--skip-download"}
 	if !opts.Legacy && opts.ExtractorArgs != "" {
 		args = append(args, "--extractor-args", opts.ExtractorArgs)

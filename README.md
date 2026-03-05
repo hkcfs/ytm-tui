@@ -31,22 +31,14 @@ The project implements the full "YTM TUI" spec:
 
 ## Runtime Dependencies
 
-- **Required binaries** (host or container):
-  1. `fzf` – interactive selection UI
-  2. `yt-dlp` – search + metadata (keep it updated via `yt-dlp -U`)
-  3. `mpv` – audio playback (plus ALSA/Pulse libraries)
-  4. `socat` – mpv IPC bridge
-  5. `jq` – JSON parsing in the TUI
-  6. `curl` – thumbnail downloads & helper requests
-  7. `tput`/`ncurses` – terminal control
-  8. `bash` – runs the embedded TUI script
-- **Optional extras:**
-  - Kitty terminal (`KITTY_WINDOW_ID`) for GPU thumbnails.
-  - Image renderers tried in order: Kitty icat → `chafa` → `viu` → `jp2a` → `img2txt`.
-  - JavaScript runtime for yt-dlp (`--js-rt`), e.g., Node, QuickJS, Deno, Bun. Set via `YTM_YTDLP_ARGS`.
-- **Binary layout:** Released `ytm` is CGO-disabled (Go 1.26) and embeds `ytm-tui.sh`. No companion scripts are required on disk.
-- **Config & overrides:** `settings.conf` stores `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`, `YTM_LEGACY_MODE`, `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`; every run of either CLI or TUI reads the same file.
-- Environment overrides such as `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`, and `YTM_LEGACY_MODE` can be set as environment variables or persisted via the TUI settings menu (they live in `settings.conf`).
+Install these on the host (Docker image already includes them):
+
+- `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`
+- `mpv` runtime deps (ALSA/Pulse) and `socat` (already listed) for IPC
+- Kitty terminal (optional) for thumbnails
+- Keep `yt-dlp` current (`yt-dlp -U`). The Docker image fetches the latest release binary automatically; host installs should be updated manually.
+- The release `ytm` binary is CGO-disabled (Go 1.26) *and* embeds `ytm-tui.sh`, so no external shell script is required at runtime.
+- Environment overrides such as `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`, and `YTM_LEGACY_MODE` can be set via env vars or managed inside the TUI settings menu (they persist to `settings.conf`).
 
 ## CLI usage
 
@@ -81,6 +73,7 @@ Flags worth knowing:
    - `ytm search "lofi chill"` launches `fzf` for selection.
    - `ytm search --no-fzf --no-history` prints results directly (good for scripting or testing).
    - `ytm search --play --limit 50` enqueues selections straight into `mpv`.
+   - `ytm play --playlist chill` or `ytm play https://youtu.be/...` bypasses search entirely and streams URLs or stored playlists via `mpv`.
 4. **Launch the full TUI:** `ytm tui` (or `docker run --rm -it ... ytm-tui tui`). The persistent layout contains:
    - Header showing the current section.
    - Left pane with `fzf` menus (Search, Playlists, Settings).
@@ -108,7 +101,7 @@ Flags worth knowing:
 - **Playback controls:** `p` or `Space` toggles pause, `>` next, `<` previous, `→/←` seek ±10s, `q` quits player.
 - **Playlists:** Nested `fzf` menus for add-from-search, delete entries, reorder (Alt+↑/↓), play sequentially.
 - **Settings:** interactive toggles for result count, history, thumbnails.
-- **Thumbnails:** Kitty images when available, with automatic fallback to `chafa`, `viu`, `jp2a`, or `img2txt` (whichever is installed) before falling back to plain text.
+- **Thumbnails:** Kitty images when available, with automatic fallback to `wezterm imgcat`, `icat`, `img2sixel`, `chafa`, `viu`, `jp2a`, or `img2txt` (whichever is installed) before falling back to plain text.
 
 All state lives under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`). Files include `settings.conf`, `history.log`, and `playlists/*.list` (`URL | Title` per line).
 
@@ -195,5 +188,6 @@ Enjoy the tunes! 🎧
 ## CI / Releases
 
 - `build-static-bin.sh` powers the release packaging: it runs inside a Dockerized Go 1.26 toolchain, emits a single static binary, and drops the compressed artifact plus `.sha256` into `dist/`.
-- `.github/workflows/release.yml` runs automatically on tags matching `v*`, invokes the script, and uploads the tarball/checksum to the GitHub Release page.
+- `.github/workflows/release.yml` runs automatically on pushes to `main` (publishing beta releases tagged `beta-<run_id>`) and on tags matching `v*` (publishing the final release under that tag).
 - Release artifacts contain just the `ytm` binary (plus checksum) because the embedded TUI script travels inside the executable.
+- `minimum-build.sh` produces an Alpine container image limited to the CLI (no mpv/fzf) for rapid smoke tests. It proves the static binary works with only `bash`, `curl`, `python3`, and the embedded script.

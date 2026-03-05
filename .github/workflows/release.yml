@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 jobs:
   build:
@@ -35,3 +35,7 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.sha256
+          tag_name: main-${{ github.run_id }}
+          name: Automated push release #${{ github.run_number }}
+          draft: false
+          prerelease: false

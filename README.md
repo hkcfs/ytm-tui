@@ -66,7 +66,7 @@ Flags worth knowing:
 ## How To Use
 
 1. **Install dependencies** (native host or Docker): `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`, plus ALSA/Pulse libraries so `mpv` can play audio. Kitty terminal support is optional but required for in-pane thumbnails.
-2. **Configure yt-dlp if needed:** keep it updated (`yt-dlp -U`). If your region requires cookies or PO tokens, set `YTM_YTDLP_ARGS` / `YTM_YTDLP_EXTRACTOR_ARGS` before running `ytm`. Example: `export YTM_YTDLP_ARGS="--cookies-from-browser firefox"`.
+2. **Configure yt-dlp if needed:** keep it updated (`yt-dlp -U`). If your region requires cookies or PO tokens, set `YTM_YTDLP_ARGS` / `YTM_YTDLP_EXTRACTOR_ARGS` before running `ytm`. You can opt into `YTM_LEGACY_MODE=1` to skip the default extractor entirely, but expect missing formats and JS runtime warnings.
 3. **Run the CLI for quick searches:**
    - `ytm search "lofi chill"` launches `fzf` for selection.
    - `ytm search --no-fzf --no-history` prints results directly (good for scripting or testing).
@@ -89,7 +89,7 @@ Flags worth knowing:
    - Minimal smoke test: `./minimum-build.sh "milk-v duo"` (Alpine CLI only, verifies search results without mpv/fzf).
 9. **Ship releases:** `TARGET_TRIPLE=linux/amd64 ./build-static-bin.sh` produces a tarball in `dist/` containing the static `ytm` binary + checksum. Tagging `v*` triggers the GitHub Actions release workflow automatically.
 
-> Tip: If you only need search output (no audio), run `ytm search --no-fzf` inside any shell—even in CI containers lacking `mpv` or `fzf`.
+> Tip: If you only need search output (no audio), run `ytm search --no-fzf` inside any shell, even in CI containers lacking `mpv` or `fzf`.
 
 ## TUI quick reference
 
@@ -162,6 +162,7 @@ Environment variables:
 - `YTM_TUI_SCRIPT` – explicit path to `ytm-tui.sh` for the launcher.
 - `YTM_YTDLP_ARGS` – extra flags appended to every `yt-dlp` call (space-split, so prefer `--flag=value` when arguments contain spaces).
 - `YTM_YTDLP_EXTRACTOR_ARGS` – override the default `youtube:player_client=tv_embedded` extractor args when YouTube requires a different client or PO token.
+- `YTM_LEGACY_MODE` – set to `1`/`true` to skip default extractor args entirely (not recommended; formats may be missing and JS runtime warnings will persist).
 
 Settings file (`settings.conf`):
 

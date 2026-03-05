@@ -20,6 +20,7 @@ const defaultExtractorArgs = "youtube:player_client=tv_embedded"
 var (
 	extraYTDLPArgs     = parseExtraYTDLPArgs()
 	ytDLPExtractorArgs = resolveExtractorArgs()
+	legacyMode         = parseLegacyMode()
 )
 
 type Video struct {
@@ -68,6 +69,15 @@ func resolveExtractorArgs() string {
 	return defaultExtractorArgs
 }
 
+func parseLegacyMode() bool {
+	value := strings.TrimSpace(os.Getenv("YTM_LEGACY_MODE"))
+	if value == "" {
+		return false
+	}
+	value = strings.ToLower(value)
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
 func addExtraYTDLPArgs(base []string, trailing ...string) []string {
 	args := make([]string, 0, len(base)+len(extraYTDLPArgs)+len(trailing))
 	args = append(args, base...)
@@ -86,7 +96,9 @@ func Search(query string, limit int) ([]Video, error) {
 		"--skip-download",
 		"--no-playlist",
 		"--default-search", "ytsearch",
-		"--extractor-args", ytDLPExtractorArgs,
+	}
+	if !legacyMode && ytDLPExtractorArgs != "" {
+		baseArgs = append(baseArgs, "--extractor-args", ytDLPExtractorArgs)
 	}
 	args := addExtraYTDLPArgs(baseArgs, fmt.Sprintf("ytsearch%d:%s", limit, query))
 	cmd := exec.Command("yt-dlp", args...)
@@ -129,7 +141,9 @@ func Formats(url string) ([]Format, error) {
 	baseArgs := []string{
 		"--dump-json",
 		"--skip-download",
-		"--extractor-args", ytDLPExtractorArgs,
+	}
+	if !legacyMode && ytDLPExtractorArgs != "" {
+		baseArgs = append(baseArgs, "--extractor-args", ytDLPExtractorArgs)
 	}
 	args := addExtraYTDLPArgs(baseArgs, url)
 	cmd := exec.Command("yt-dlp", args...)

@@ -20,7 +20,11 @@ EXTRA_YTDLP_ARGS=()
 if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 	IFS=' ' read -r -a EXTRA_YTDLP_ARGS <<<"${YTM_YTDLP_ARGS}"
 fi
-YTDLP_EXTRACTOR_ARGS=${YTM_YTDLP_EXTRACTOR_ARGS:-youtube:player_client=tv_embedded}
+LEGACY_MODE=${YTM_LEGACY_MODE:-0}
+YTDLP_EXTRACTOR_ARGS=${YTM_YTDLP_EXTRACTOR_ARGS:-}
+if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
+	YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
+fi
 
 yt_dlp() {
 	command yt-dlp "${EXTRA_YTDLP_ARGS[@]}" "$@"
@@ -140,7 +144,11 @@ search_videos() {
 	[[ -n "$query" ]] || return 1
 	local tmp_json
 	tmp_json=$(mktemp)
-	yt_dlp --dump-json --skip-download --no-playlist --default-search ytsearch --extractor-args "$YTDLP_EXTRACTOR_ARGS" "ytsearch${SEARCH_RESULTS}:${query}" \
+	local extractor_flags=()
+	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
+		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
+	fi
+	yt_dlp --dump-json --skip-download --no-playlist --default-search ytsearch "${extractor_flags[@]}" "ytsearch${SEARCH_RESULTS}:${query}" \
 		| jq -s 'map(select(((.duration // 0) > 65) and (.webpage_url | contains("/shorts/") | not)))' >"$tmp_json"
 	mapfile -t RESULTS < <(jq -r 'to_entries[] | "\(.key)\t\(.value.title)\t\(.value.uploader)\t\(.value.duration_string // "??")\t\(.value.view_count // 0)\t\(.value.webpage_url)\t\(.value.thumbnail // "")"' "$tmp_json")
 	rm -f "$tmp_json"
@@ -176,7 +184,11 @@ PVS
 
 select_format() {
 	local url="$1"
-	mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download --extractor-args "$YTDLP_EXTRACTOR_ARGS" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"')
+	local extractor_flags=()
+	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
+		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
+	fi
+	mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download "${extractor_flags[@]}" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"')
 	if [[ ${#FORMATS[@]} -eq 0 ]]; then
 		FORMAT_ID="bestaudio"
 		return

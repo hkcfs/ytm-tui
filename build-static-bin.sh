@@ -33,7 +33,7 @@ export GOFLAGS='-buildvcs=false'
 EOF
 )
 
-CONTAINER_ID=$(docker create --platform "linux/$TARGET_GOARCH" -w /workspace golang:1.22 bash -lc "$BUILD_CMD")
+CONTAINER_ID=$(docker create --platform "linux/$TARGET_GOARCH" -w /workspace golang:1.26 bash -lc "$BUILD_CMD")
 docker cp "$ROOT_DIR/." "$CONTAINER_ID:/workspace"
 docker start -a "$CONTAINER_ID"
 docker cp "$CONTAINER_ID:/workspace/build/ytm" "$TMP_DIR/ytm"

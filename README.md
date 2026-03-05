@@ -111,7 +111,7 @@ make build          # go build -o bin/ytm ./cmd/ytm
 make run            # run the binary locally (default --help)
 make lint           # gofmt + go vet (basic hygiene)
 make docker-build   # ship the container image
-./build-static-bin.sh   # produce dist/ytm-linux-amd64.tar.gz via Docker
+TARGET_TRIPLE=linux/amd64 ./build-static-bin.sh   # produce dist/ytm-linux-amd64.tar.gz via Docker
 ```
 
 Project layout:

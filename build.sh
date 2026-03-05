@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 BIN_DIR="$ROOT_DIR/bin"
 IMAGE_NAME="${IMAGE_NAME:-ytm-tui:latest}"
-GO_IMAGE="${GO_IMAGE:-golang:1.22}"
+GO_IMAGE="${GO_IMAGE:-golang:1.26}"
 
 mkdir -p "$BIN_DIR"
 

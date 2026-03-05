@@ -19,9 +19,12 @@ const (
 
 // Settings holds user preferences that mirror the spec's settings menu.
 type Settings struct {
-	SearchResults  int  `json:"search_results"`
-	UseHistory     bool `json:"use_history"`
-	ShowThumbnails bool `json:"show_thumbnails"`
+	SearchResults  int    `json:"search_results"`
+	UseHistory     bool   `json:"use_history"`
+	ShowThumbnails bool   `json:"show_thumbnails"`
+	LegacyMode     bool   `json:"legacy_mode"`
+	YTDLPArgs      string `json:"ytdlp_args"`
+	ExtractorArgs  string `json:"extractor_args"`
 }
 
 // Paths groups frequently used config paths.
@@ -93,6 +96,13 @@ func SaveSettings(s Settings) error {
 	fmt.Fprintf(writer, "SEARCH_RESULTS=%d\n", s.SearchResults)
 	fmt.Fprintf(writer, "USE_HISTORY=%d\n", boolToInt(s.UseHistory))
 	fmt.Fprintf(writer, "SHOW_THUMBNAILS=%d\n", boolToInt(s.ShowThumbnails))
+	fmt.Fprintf(writer, "YTM_LEGACY_MODE=%d\n", boolToInt(s.LegacyMode))
+	if s.YTDLPArgs != "" {
+		fmt.Fprintf(writer, "YTM_YTDLP_ARGS=%s\n", s.YTDLPArgs)
+	}
+	if s.ExtractorArgs != "" {
+		fmt.Fprintf(writer, "YTM_YTDLP_EXTRACTOR_ARGS=%s\n", s.ExtractorArgs)
+	}
 	if err := writer.Flush(); err != nil {
 		return fmt.Errorf("flush settings: %w", err)
 	}
@@ -138,6 +148,12 @@ func readConf(path string) (Settings, error) {
 			settings.UseHistory = parseBool(value)
 		case "SHOW_THUMBNAILS":
 			settings.ShowThumbnails = parseBool(value)
+		case "YTM_LEGACY_MODE":
+			settings.LegacyMode = parseBool(value)
+		case "YTM_YTDLP_ARGS":
+			settings.YTDLPArgs = value
+		case "YTM_YTDLP_EXTRACTOR_ARGS":
+			settings.ExtractorArgs = value
 		}
 	}
 	if err := scanner.Err(); err != nil {

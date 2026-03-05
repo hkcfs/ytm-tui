@@ -87,6 +87,9 @@ load_settings() {
 				SEARCH_RESULTS) SEARCH_RESULTS=${value:-25} ;;
 				USE_HISTORY) USE_HISTORY=${value:-1} ;;
 				SHOW_THUMBNAILS) SHOW_THUMBNAILS=${value:-0} ;;
+				YTM_LEGACY_MODE) LEGACY_MODE=${value:-0} ;;
+				YTM_YTDLP_ARGS) YTM_YTDLP_ARGS=${value} ;;
+				YTM_YTDLP_EXTRACTOR_ARGS) YTDLP_EXTRACTOR_ARGS=${value} ;;
 			esac
 		done < "$SETTINGS_FILE"
 	else
@@ -99,6 +102,9 @@ save_settings() {
 SEARCH_RESULTS=${SEARCH_RESULTS}
 USE_HISTORY=${USE_HISTORY}
 SHOW_THUMBNAILS=${SHOW_THUMBNAILS}
+YTM_LEGACY_MODE=${LEGACY_MODE}
+YTM_YTDLP_ARGS=${YTM_YTDLP_ARGS}
+YTM_YTDLP_EXTRACTOR_ARGS=${YTDLP_EXTRACTOR_ARGS}
 EOF
 }
 
@@ -407,11 +413,14 @@ play_playlist() {
 
 settings_menu() {
 	while true; do
-		choice=$(printf 'SEARCH_RESULTS (%s)\nUSE_HISTORY (%s)\nSHOW_THUMBNAILS (%s)\nBack\n' "$SEARCH_RESULTS" "$USE_HISTORY" "$SHOW_THUMBNAILS" | fzf --prompt="settings > ") || return
+		choice=$(printf 'SEARCH_RESULTS (%s)\nUSE_HISTORY (%s)\nSHOW_THUMBNAILS (%s)\nYTM_LEGACY_MODE (%s)\nYTM_YTDLP_ARGS (%s)\nYTM_YTDLP_EXTRACTOR_ARGS (%s)\nBack\n' "$SEARCH_RESULTS" "$USE_HISTORY" "$SHOW_THUMBNAILS" "$LEGACY_MODE" "${YTM_YTDLP_ARGS:-unset}" "${YTDLP_EXTRACTOR_ARGS:-default}" | fzf --prompt="settings > ") || return
 		case "$choice" in
 			SEARCH_RESULTS*) read -rp "Results count: " SEARCH_RESULTS ;;
 			USE_HISTORY*) USE_HISTORY=$((1-USE_HISTORY)) ;;
 			SHOW_THUMBNAILS*) SHOW_THUMBNAILS=$((1-SHOW_THUMBNAILS)) ;;
+			YTM_LEGACY_MODE*) LEGACY_MODE=$((1-LEGACY_MODE)) ;;
+			YTM_YTDLP_ARGS*) read -rp "Extra yt-dlp args: " input && YTM_YTDLP_ARGS="$input" ;;
+			YTM_YTDLP_EXTRACTOR_ARGS*) read -rp "Extractor args (blank for default): " input && YTDLP_EXTRACTOR_ARGS="$input" ;;
 			*) save_settings; return ;;
 		esac
 		save_settings

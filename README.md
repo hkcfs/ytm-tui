@@ -100,6 +100,7 @@ Flags worth knowing:
 - **Playback controls:** `p` or `Space` toggles pause, `>` next, `<` previous, `→/←` seek ±10s, `q` quits player.
 - **Playlists:** Nested `fzf` menus for add-from-search, delete entries, reorder (Alt+↑/↓), play sequentially.
 - **Settings:** interactive toggles for result count, history, thumbnails.
+- **Thumbnails:** Kitty images when available, with automatic fallback to `chafa`, `viu`, `jp2a`, or `img2txt` (whichever is installed) before falling back to plain text.
 
 All state lives under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`). Files include `settings.conf`, `history.log`, and `playlists/*.list` (`URL | Title` per line).
 

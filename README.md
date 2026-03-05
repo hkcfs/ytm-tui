@@ -13,6 +13,19 @@ Go-backed CLI plus Bash/fzf TUI for searching, queueing, and playing YouTube aud
 - **Kitty thumbnails:** When `SHOW_THUMBNAILS=1` and Kitty is detected, previews render via `kitty +kitten icat`.
 - **Docker-ready:** Multi-stage image ships Go binary plus all runtime deps for reproducible usage.
 
+## Specification Reference
+
+The project implements the full "YTM TUI" spec:
+
+- **Core tech:** Bash TUI (`scripts/ytm-tui.sh`) orchestrates `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `tput`, and optional Kitty graphics. The Go CLI (Cobra) is a thin wrapper exposing both CLI + TUI commands.
+- **Search:** `ytm search` and the TUI main menu offer `fzf`-driven search, exclude Shorts, and honor history toggles stored in `settings.conf`/`history.log`.
+- **Playback:** Selections enqueue into `mpv` via IPC; the TUI shows track metadata, status, and progress with key bindings (`p`, `>`, `<`, arrows, `q`). Audio formats are selectable through `fzf`, defaulting to best available when skipped.
+- **Persistent frame:** The Bash script draws header/footer panes with `tput`, keeps `fzf` constrained to the content pane, and updates the side panel with thumbnails/details or playback info.
+- **Playlists:** Nested `fzf` menus handle create/edit/delete/play flows using plain-text `playlists/*.list` files, including multi-add, multi-delete, and reordering (Alt-↑/↓ bindings).
+- **Settings page:** Accessible from the main menu, lets users tweak `SEARCH_RESULTS`, `USE_HISTORY`, and `SHOW_THUMBNAILS`, persisted instantly.
+- **Command-line integration:** Cobra CLI offers `ytm search`, `ytm tui`, standard `--help`, plus `--limit`, `--play`, `--format`, `--no-history`, `--no-fzf` flags mirroring the TUI behavior.
+- **References honored:** Layout, thumbnail previews, IPC control, and search mechanics mirror `ytfzf` inspiration while incorporating mpv IPC docs and Bash best practices.
+
 ## Runtime Dependencies
 
 Install these on the host (Docker image already includes them):

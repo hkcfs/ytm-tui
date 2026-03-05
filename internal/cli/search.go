@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -61,7 +62,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		_ = history.Append(paths.HistoryFile, query)
 	}
 	options := buildSearchOptions(settings)
+	spin := newSpinner(cmd.ErrOrStderr(), "Searching YouTube")
+	spin.Start()
 	videos, err := search.Search(query, limit, options)
+	spin.Stop()
 	if err != nil {
 		return err
 	}
@@ -203,4 +207,59 @@ func splitArgs(raw string) []string {
 func parseBoolEnv(v string) bool {
 	v = strings.ToLower(strings.TrimSpace(v))
 	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+type spinner struct {
+	writer  io.Writer
+	message string
+	stop    chan struct{}
+	done    chan struct{}
+	chars   []rune
+}
+
+func newSpinner(w io.Writer, message string) *spinner {
+	if w == nil {
+		return nil
+	}
+	return &spinner{
+		writer:  w,
+		message: message,
+		stop:    make(chan struct{}),
+		done:    make(chan struct{}),
+		chars:   []rune{'|', '/', '-', '\\'},
+	}
+}
+
+func (s *spinner) Start() {
+	if s == nil {
+		return
+	}
+	go func() {
+		defer close(s.done)
+		idx := 0
+		fmt.Fprintf(s.writer, "%s ", s.message)
+		for {
+			select {
+			case <-s.stop:
+				fmt.Fprintf(s.writer, "\r%s ✓\n", s.message)
+				return
+			case <-time.After(120 * time.Millisecond):
+				char := s.chars[idx%len(s.chars)]
+				fmt.Fprintf(s.writer, "\r%s %c", s.message, char)
+				idx++
+			}
+		}
+	}()
+}
+
+func (s *spinner) Stop() {
+	if s == nil {
+		return
+	}
+	select {
+	case <-s.done:
+		return
+	case s.stop <- struct{}{}:
+		<-s.done
+	}
 }

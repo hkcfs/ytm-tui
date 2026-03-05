@@ -27,6 +27,8 @@ if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 fi
 
 THUMB_RENDERER="none"
+progress_pid=""
+progress_running=0
 
 yt_dlp() {
 	command yt-dlp "${EXTRA_YTDLP_ARGS[@]}" "$@"
@@ -39,6 +41,7 @@ cleanup() {
 		rm -f "$MPV_SOCKET"
 	fi
 	tput cnorm || true
+	stop_progress
 }
 
 swap_lines() {
@@ -108,6 +111,38 @@ refresh_extra_args() {
 	EXTRA_YTDLP_ARGS=()
 	if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 		IFS=' ' read -r -a EXTRA_YTDLP_ARGS <<<"${YTM_YTDLP_ARGS}"
+	fi
+}
+
+show_progress() {
+	local message="$1"
+	[[ -n "$progress_pid" ]] && return
+	progress_running=1
+	(
+		local chars='|/-\\'
+		local i=0
+		while [[ $progress_running -eq 1 ]]; do
+			local char=${chars:i%${#chars}:1}
+			tput sc
+			tput cup 2 0
+			printf "%-50s" "$message $char"
+			tput rc
+			sleep 0.1
+			i=$((i+1))
+		done
+	) &
+	progress_pid=$!
+}
+
+stop_progress() {
+	if [[ -n "$progress_pid" ]]; then
+		progress_running=0
+		wait "$progress_pid" 2>/dev/null || true
+		progress_pid=""
+		tput sc
+		tput cup 2 0
+		printf "%-50s" ""
+		tput rc
 	fi
 }
 
@@ -191,8 +226,14 @@ search_videos() {
 	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
 		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
 	fi
-	yt_dlp --dump-json --skip-download --no-playlist --default-search ytsearch "${extractor_flags[@]}" "ytsearch${SEARCH_RESULTS}:${query}" \
-		| jq -s 'map(select(((.duration // 0) > 65) and (.webpage_url | contains("/shorts/") | not)))' >"$tmp_json"
+	show_progress "Searching YouTube..."
+	if ! yt_dlp --dump-json --skip-download --no-playlist --default-search ytsearch "${extractor_flags[@]}" "ytsearch${SEARCH_RESULTS}:${query}" \
+		| jq -s 'map(select(((.duration // 0) > 65) and (.webpage_url | contains("/shorts/") | not)))' >"$tmp_json"; then
+		stop_progress
+		rm -f "$tmp_json"
+		return 1
+	fi
+	stop_progress
 	mapfile -t RESULTS < <(jq -r 'to_entries[] | "\(.key)\t\(.value.title)\t\(.value.uploader)\t\(.value.duration_string // "??")\t\(.value.view_count // 0)\t\(.value.webpage_url)\t\(.value.thumbnail // "")"' "$tmp_json")
 	rm -f "$tmp_json"
 }
@@ -264,7 +305,12 @@ select_format() {
 	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
 		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
 	fi
-	mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download "${extractor_flags[@]}" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"')
+	show_progress "Fetching formats..."
+	if ! mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download "${extractor_flags[@]}" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"'); then
+		stop_progress
+		return
+	fi
+	stop_progress
 	if [[ ${#FORMATS[@]} -eq 0 ]]; then
 		FORMAT_ID="bestaudio"
 		return

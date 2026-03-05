@@ -83,7 +83,7 @@ Flags worth knowing:
    - *Add Videos* reuses the Search UI and appends `URL | Title` lines to the chosen `.list` file.
    - *Delete Videos* lets you multi-select entries to drop.
    - *Reorder* binds Alt-↑/↓ to move lines (fzf reloads live).
-6. **Adjust settings:** TUI → *Settings* toggles `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`, `YTM_LEGACY_MODE`, plus editable text fields for `YTM_YTDLP_ARGS` and `YTM_YTDLP_EXTRACTOR_ARGS`. Changes persist immediately to `~/.config/ytm-tui/settings.conf`, and the Go CLI inherits them on each run.
+6. **Adjust settings:** TUI → *Settings* toggles `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`, `YTM_LEGACY_MODE`, plus editable text fields for `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`, and `YTM_THUMB_RENDERER`. Changes persist immediately to `~/.config/ytm-tui/settings.conf`, and the Go CLI inherits them on each run.
 7. **Understand storage:**
    - Settings/history/playlists live under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`).
    - Temporary sockets/thumbnails are created in `/tmp/ytm-tui` or `$TMPDIR` and cleaned up automatically.
@@ -101,7 +101,7 @@ Flags worth knowing:
 - **Playback controls:** `p` or `Space` toggles pause, `>` next, `<` previous, `→/←` seek ±10s, `q` quits player.
 - **Playlists:** Nested `fzf` menus for add-from-search, delete entries, reorder (Alt+↑/↓), play sequentially.
 - **Settings:** interactive toggles for result count, history, thumbnails.
-- **Thumbnails:** Kitty images when available, with automatic fallback to `wezterm imgcat`, `icat`, `img2sixel`, `chafa`, `viu`, `jp2a`, or `img2txt` (whichever is installed) before falling back to plain text.
+- **Thumbnails:** Kitty images when available, with automatic fallback to `wezterm imgcat`, `icat`, `img2sixel`, `chafa`, `viu`, `jp2a`, or `img2txt` (whichever is installed) before falling back to plain text. Override the renderer via `YTM_THUMB_RENDERER` if you prefer a specific tool (or `none`).
 
 All state lives under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`). Files include `settings.conf`, `history.log`, and `playlists/*.list` (`URL | Title` per line).
 
@@ -167,6 +167,7 @@ Environment variables:
 - `YTM_YTDLP_ARGS` – extra flags appended to every `yt-dlp` call (space-split, so prefer `--flag=value` when arguments contain spaces).
 - `YTM_YTDLP_EXTRACTOR_ARGS` – override the default `youtube:player_client=tv_embedded` extractor args when YouTube requires a different client or PO token.
 - `YTM_LEGACY_MODE` – set to `1`/`true` to skip default extractor args entirely (not recommended; formats may be missing and JS runtime warnings will persist).
+- `YTM_THUMB_RENDERER` – force a specific previewer (`kitty`, `wezterm`, `icat`, `img2sixel`, `chafa`, `viu`, `jp2a`, `img2txt`, `none`, `auto`). Also editable inside the TUI settings menu.
 
 Settings file (`settings.conf`):
 

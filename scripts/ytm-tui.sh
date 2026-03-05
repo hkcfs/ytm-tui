@@ -22,6 +22,7 @@ if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 fi
 LEGACY_MODE=${YTM_LEGACY_MODE:-0}
 YTDLP_EXTRACTOR_ARGS=${YTM_YTDLP_EXTRACTOR_ARGS:-}
+FORCED_RENDERER=${YTM_THUMB_RENDERER:-}
 if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 	YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
 fi
@@ -95,6 +96,7 @@ load_settings() {
 				YTM_LEGACY_MODE) LEGACY_MODE=${value:-0} ;;
 				YTM_YTDLP_ARGS) YTM_YTDLP_ARGS=${value} ;;
 				YTM_YTDLP_EXTRACTOR_ARGS) YTDLP_EXTRACTOR_ARGS=${value} ;;
+				YTM_THUMB_RENDERER) FORCED_RENDERER=${value} ;;
 			esac
 		done < "$SETTINGS_FILE"
 	else
@@ -112,6 +114,50 @@ refresh_extra_args() {
 	if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 		IFS=' ' read -r -a EXTRA_YTDLP_ARGS <<<"${YTM_YTDLP_ARGS}"
 	fi
+}
+
+renderer_supported() {
+	local renderer="$1"
+	case "$renderer" in
+		kitty)
+			[[ "$HAVE_KITTY" == "1" && -n "$KITTY_WINDOW_ID" ]]
+			return
+			;;
+		wezterm)
+			command -v wezterm >/dev/null 2>&1
+			return
+			;;
+		icat)
+			command -v icat >/dev/null 2>&1
+			return
+			;;
+		img2sixel)
+			command -v img2sixel >/dev/null 2>&1
+			return
+			;;
+		chafa)
+			command -v chafa >/dev/null 2>&1
+			return
+			;;
+		viu)
+			command -v viu >/dev/null 2>&1
+			return
+			;;
+		jp2a)
+			command -v jp2a >/dev/null 2>&1
+			return
+			;;
+		img2txt)
+			command -v img2txt >/dev/null 2>&1
+			return
+			;;
+		none)
+			return 0
+			;;
+		*)
+			return 1
+			;;
+	esac
 }
 
 show_progress() {
@@ -149,23 +195,23 @@ stop_progress() {
 select_thumbnail_renderer() {
 	THUMB_RENDERER="none"
 	if [[ "$SHOW_THUMBNAILS" == "1" ]]; then
-		if [[ "$HAVE_KITTY" == "1" && -n "$KITTY_WINDOW_ID" ]]; then
-			THUMB_RENDERER="kitty"
-		elif command -v wezterm >/dev/null 2>&1; then
-			THUMB_RENDERER="wezterm"
-		elif command -v icat >/dev/null 2>&1; then
-			THUMB_RENDERER="icat"
-		elif command -v img2sixel >/dev/null 2>&1; then
-			THUMB_RENDERER="img2sixel"
-		elif command -v chafa >/dev/null 2>&1; then
-			THUMB_RENDERER="chafa"
-		elif command -v viu >/dev/null 2>&1; then
-			THUMB_RENDERER="viu"
-		elif command -v jp2a >/dev/null 2>&1; then
-			THUMB_RENDERER="jp2a"
-		elif command -v img2txt >/dev/null 2>&1; then
-			THUMB_RENDERER="img2txt"
+		local order=()
+		local forced=$(printf "%s" "$FORCED_RENDERER" | tr 'A-Z' 'a-z')
+		if [[ -n "$forced" && "$forced" != "auto" ]]; then
+			if [[ "$forced" == "none" ]]; then
+				THUMB_RENDERER="none"
+				return
+			fi
+			order+=("$forced")
 		fi
+		order+=("kitty" "wezterm" "icat" "img2sixel" "chafa" "viu" "jp2a" "img2txt")
+		for renderer in "${order[@]}"; do
+			[[ -z "$renderer" ]] && continue
+			if renderer_supported "$renderer"; then
+				THUMB_RENDERER="$renderer"
+				return
+			fi
+		done
 	fi
 }
 
@@ -177,6 +223,7 @@ SHOW_THUMBNAILS=${SHOW_THUMBNAILS}
 YTM_LEGACY_MODE=${LEGACY_MODE}
 YTM_YTDLP_ARGS=${YTM_YTDLP_ARGS}
 YTM_YTDLP_EXTRACTOR_ARGS=${YTDLP_EXTRACTOR_ARGS}
+YTM_THUMB_RENDERER=${FORCED_RENDERER}
 EOF
 }
 
@@ -246,6 +293,7 @@ function human(){
 	if (( n > 1000000 )); then printf "%.1fM" "$(awk -v n=$n 'BEGIN{print n/1000000}')"; elif (( n > 1000 )); then printf "%.1fk" "$(awk -v n=$n 'BEGIN{print n/1000}')"; else printf "%s" "$n"; fi
 }
 IFS=$'\t' read -r idx title channel duration views url thumb <<<"{}"
+printf "Index: %s\nTitle: %s\nChannel: %s\nDuration: %s\nViews: %s\nURL: %s\n\n" "$idx" "$title" "$channel" "$duration" "$(human "$views")" "$url"
 if [[ "$SHOW_THUMBNAILS" == "1" && -n "$thumb" && "$THUMB_RENDERER" != "none" ]]; then
 	cache="${TMPDIR:-/tmp}/ytm-thumb-$idx.jpg"
 	if [[ ! -f "$cache" ]]; then
@@ -285,8 +333,9 @@ if [[ "$SHOW_THUMBNAILS" == "1" && -n "$thumb" && "$THUMB_RENDERER" != "none" ]]
 			printf '\n'
 			;;
 		esac
+else
+	printf "(Thumbnails disabled or renderer unavailable)\n"
 fi
-printf "Index: %s\nTitle: %s\nChannel: %s\nDuration: %s\nViews: %s\nURL: %s\n" "$idx" "$title" "$channel" "$duration" "$(human "$views")" "$url"
 PVS
 )
 	local selection_file
@@ -556,7 +605,7 @@ play_playlist() {
 
 settings_menu() {
 	while true; do
-		choice=$(printf 'SEARCH_RESULTS (%s)\nUSE_HISTORY (%s)\nSHOW_THUMBNAILS (%s)\nYTM_LEGACY_MODE (%s)\nYTM_YTDLP_ARGS (%s)\nYTM_YTDLP_EXTRACTOR_ARGS (%s)\nBack\n' "$SEARCH_RESULTS" "$USE_HISTORY" "$SHOW_THUMBNAILS" "$LEGACY_MODE" "${YTM_YTDLP_ARGS:-unset}" "${YTDLP_EXTRACTOR_ARGS:-default}" | fzf --prompt="settings > ") || return
+		choice=$(printf 'SEARCH_RESULTS (%s)\nUSE_HISTORY (%s)\nSHOW_THUMBNAILS (%s)\nYTM_LEGACY_MODE (%s)\nYTM_YTDLP_ARGS (%s)\nYTM_YTDLP_EXTRACTOR_ARGS (%s)\nYTM_THUMB_RENDERER (%s)\nBack\n' "$SEARCH_RESULTS" "$USE_HISTORY" "$SHOW_THUMBNAILS" "$LEGACY_MODE" "${YTM_YTDLP_ARGS:-unset}" "${YTDLP_EXTRACTOR_ARGS:-default}" "${FORCED_RENDERER:-auto}" | fzf --prompt="settings > ") || return
 		case "$choice" in
 			SEARCH_RESULTS*) read -rp "Results count: " SEARCH_RESULTS ;;
 			USE_HISTORY*) USE_HISTORY=$((1-USE_HISTORY)) ;;
@@ -564,11 +613,15 @@ settings_menu() {
 			YTM_LEGACY_MODE*) LEGACY_MODE=$((1-LEGACY_MODE)) ;;
 			YTM_YTDLP_ARGS*) read -rp "Extra yt-dlp args: " input && YTM_YTDLP_ARGS="$input" ;;
 			YTM_YTDLP_EXTRACTOR_ARGS*) read -rp "Extractor args (blank for default): " input && YTDLP_EXTRACTOR_ARGS="$input" ;;
+			YTM_THUMB_RENDERER*) read -rp "Preferred previewer (kitty/wezterm/icat/img2sixel/chafa/viu/jp2a/img2txt/none/auto): " input && FORCED_RENDERER="$input" ;;
 			*) save_settings; return ;;
 		esac
 		refresh_extra_args
 		if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 			YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
+		fi
+		if [[ "$FORCED_RENDERER" == "" ]]; then
+			FORCED_RENDERER="auto"
 		fi
 		select_thumbnail_renderer
 		save_settings

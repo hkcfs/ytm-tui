@@ -1,6 +1,55 @@
 #!/usr/bin/env bash
 set -Euo pipefail
 
+# Helpers
+normalize_bool() {
+	local value="${1,,}"
+	case "$value" in
+		1|true|yes|on) echo 1 ;;
+		*) echo 0 ;;
+	esac
+}
+
+normalize_renderer() {
+	local value="${1,,}"
+	case "$value" in
+		kitty|wezterm|icat|img2sixel|chafa|viu|jp2a|img2txt|none|auto)
+			echo "$value"
+			;;
+		"") echo "auto" ;;
+		*) echo "auto" ;;
+	esac
+}
+
+clear_prompt_line() {
+	if [[ -t 1 ]]; then
+		tput el 2>/dev/null || true
+		tput cuu1 2>/dev/null || true
+		tput el 2>/dev/null || true
+		tput cud1 2>/dev/null || true
+	fi
+}
+
+normalize_renderer() {
+	local value="${1,,}"
+	case "$value" in
+		kitty|wezterm|icat|img2sixel|chafa|viu|jp2a|img2txt|none|auto)
+			echo "$value"
+			;;
+		"") echo "auto" ;;
+		*) echo "auto" ;;
+	esac
+}
+
+clear_prompt_line() {
+	if [[ -t 1 ]]; then
+		tput cuu1 2>/dev/null || true
+		tput el 2>/dev/null || true
+		tput cud1 2>/dev/null || true
+		tput el 2>/dev/null || true
+	fi
+}
+
 APP_NAME="YTM"
 CONFIG_ROOT="${YTM_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/ytm-tui}"
 SETTINGS_FILE="$CONFIG_ROOT/settings.conf"
@@ -20,9 +69,9 @@ EXTRA_YTDLP_ARGS=()
 if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 	IFS=' ' read -r -a EXTRA_YTDLP_ARGS <<<"${YTM_YTDLP_ARGS}"
 fi
-LEGACY_MODE=${YTM_LEGACY_MODE:-0}
+LEGACY_MODE=$(normalize_bool "${YTM_LEGACY_MODE:-0}")
 YTDLP_EXTRACTOR_ARGS=${YTM_YTDLP_EXTRACTOR_ARGS:-}
-FORCED_RENDERER=${YTM_THUMB_RENDERER:-auto}
+FORCED_RENDERER=$(normalize_renderer "${YTM_THUMB_RENDERER:-auto}")
 if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 	YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
 fi
@@ -31,7 +80,15 @@ THUMB_RENDERER="none"
 progress_pid=""
 
 yt_dlp() {
-	command yt-dlp "${EXTRA_YTDLP_ARGS[@]}" "$@"
+	local args=(--ignore-config)
+	if [[ "${YTM_SUPPRESS_WARNINGS:-1}" == "1" ]]; then
+		args+=(--no-warnings)
+	fi
+	if [[ ${#EXTRA_YTDLP_ARGS[@]} -gt 0 ]]; then
+		args+=("${EXTRA_YTDLP_ARGS[@]}")
+	fi
+	args+=("$@")
+	command yt-dlp "${args[@]}"
 }
 
 trap cleanup EXIT INT TERM
@@ -40,24 +97,12 @@ cleanup() {
 	if [[ -S "$MPV_SOCKET" ]]; then
 		rm -f "$MPV_SOCKET"
 	fi
-	tput cnorm || true
+	if [[ -t 1 ]]; then
+		tput cnorm 2>/dev/null || true
+		tput clear 2>/dev/null || true
+		tput cup 0 0 2>/dev/null || true
+	fi
 	stop_progress
-}
-
-normalize_bool() {
-	local value="${1,,}"
-	case "$value" in
-		1|true|yes|on) echo 1 ;;
-		*) echo 0 ;;
-	esac
-}
-
-normalize_bool() {
-	local value="${1,,}"
-	case "$value" in
-		1|true|yes|on) echo 1 ;;
-		*) echo 0 ;;
-	esac
 }
 
 swap_lines() {
@@ -111,7 +156,7 @@ load_settings() {
 				YTM_LEGACY_MODE) LEGACY_MODE=$(normalize_bool "${value:-0}") ;;
 				YTM_YTDLP_ARGS) YTM_YTDLP_ARGS=${value} ;;
 				YTM_YTDLP_EXTRACTOR_ARGS) YTDLP_EXTRACTOR_ARGS=${value} ;;
-				YTM_THUMB_RENDERER) FORCED_RENDERER=${value} ;;
+				YTM_THUMB_RENDERER) FORCED_RENDERER=$(normalize_renderer "${value:-auto}") ;;
 			esac
 		done < "$SETTINGS_FILE"
 	else
@@ -181,15 +226,16 @@ renderer_supported() {
 show_progress() {
 	local message="$1"
 	[[ -n "$progress_pid" ]] && return
+	[[ ! -t 1 ]] && return
 	(
 		local chars='|/-\\'
 		local i=0
 		while true; do
 			local char=${chars:i%${#chars}:1}
-			tput sc
-			tput cup 2 0
+			tput sc 2>/dev/null || true
+			tput cup 2 0 2>/dev/null || true
 			printf "%-50s" "$message $char"
-			tput rc
+			tput rc 2>/dev/null || true
 			sleep 0.1
 			i=$((i+1))
 		done
@@ -202,10 +248,12 @@ stop_progress() {
 		kill "$progress_pid" 2>/dev/null || true
 		wait "$progress_pid" 2>/dev/null || true
 		progress_pid=""
-		tput sc
-		tput cup 2 0
-		printf "%-50s" ""
-		tput rc
+		if [[ -t 1 ]]; then
+			tput sc 2>/dev/null || true
+			tput cup 2 0 2>/dev/null || true
+			printf "%-50s" ""
+			tput rc 2>/dev/null || true
+		fi
 	fi
 }
 
@@ -233,6 +281,7 @@ select_thumbnail_renderer() {
 }
 
 save_settings() {
+	local renderer_value=$(normalize_renderer "${FORCED_RENDERER:-auto}")
 	cat >"$SETTINGS_FILE" <<EOF
 SEARCH_RESULTS=${SEARCH_RESULTS}
 USE_HISTORY=${USE_HISTORY}
@@ -240,7 +289,7 @@ SHOW_THUMBNAILS=${SHOW_THUMBNAILS}
 YTM_LEGACY_MODE=${LEGACY_MODE}
 YTM_YTDLP_ARGS=${YTM_YTDLP_ARGS}
 YTM_YTDLP_EXTRACTOR_ARGS=${YTDLP_EXTRACTOR_ARGS}
-YTM_THUMB_RENDERER=${FORCED_RENDERER}
+YTM_THUMB_RENDERER=${renderer_value}
 EOF
 }
 
@@ -268,6 +317,7 @@ prompt_query() {
 		default=$(tail -n 1 "$HISTORY_FILE" || true)
 	fi
 	read -rp "Search query [${default:-none}]: " query || true
+	clear_prompt_line
 	if [[ -z "$query" ]]; then
 		query="$default"
 	fi
@@ -287,7 +337,7 @@ search_videos() {
 	local tmp_json
 	tmp_json=$(mktemp)
 	local extractor_flags=()
-	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
+	if [[ "$LEGACY_MODE" != "1" && -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
 		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
 	fi
 	show_progress "Searching YouTube..."
@@ -368,11 +418,11 @@ PVS
 select_format() {
 	local url="$1"
 	local extractor_flags=()
-	if [[ -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
+	if [[ "$LEGACY_MODE" != "1" && -n "$YTDLP_EXTRACTOR_ARGS" ]]; then
 		extractor_flags=(--extractor-args "$YTDLP_EXTRACTOR_ARGS")
 	fi
 	show_progress "Fetching formats..."
-	if ! mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download "${extractor_flags[@]}" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext)\t\(.tbr // 0)kbps"'); then
+	if ! mapfile -t FORMATS < <(yt_dlp --dump-json --skip-download "${extractor_flags[@]}" "$url" | jq -r '.formats[] | select(.vcodec == "none" and .acodec != "none") | "\(.format_id)\t\(.ext // "?")\t\((.abr // .tbr // 0)|tonumber)kbps\t\(.filesize // .filesize_approx // 0)\t\(.format_note // .format // "audio")"'); then
 		stop_progress
 		return
 	fi
@@ -381,7 +431,29 @@ select_format() {
 		FORMAT_ID="bestaudio"
 		return
 	fi
-	FORMAT_ID=$(printf '%s\n' "${FORMATS[@]}" | fzf --prompt="audio format > " --with-nth=1 --delimiter='\t' | cut -f1)
+	local format_preview
+	format_preview=$(cat <<'FPR'
+function human(){
+	local n=$1
+	if (( n <= 0 )); then printf "unknown"; return; fi
+	local units=(B KB MB GB)
+	local i=0
+	while (( n > 1024 && i < ${#units[@]}-1 )); do
+		n=$((n/1024))
+		i=$((i+1))
+	done
+	printf "%d%s" "$n" "${units[$i]}"
+}
+IFS=$'\t' read -r id ext br size note <<<"{}"
+printf "Format: %s\nExt: %s\nBitrate: %s\nSize: %s\nInfo: %s\n" "$id" "$ext" "$br" "$(human "$size")" "$note"
+FPR
+)
+	FORMAT_ID=$(printf '%s\n' "${FORMATS[@]}" | \
+	fzf --prompt="audio format > " \
+		--with-nth=1,2,3,5 \
+		--delimiter='\t' \
+		--preview "bash -c '$format_preview'" \
+		--preview-window=right,50% | cut -f1)
 	FORMAT_ID=${FORMAT_ID:-bestaudio}
 }
 
@@ -509,6 +581,7 @@ playlist_menu() {
 
 create_playlist() {
 	read -rp "Playlist name: " name || return
+	clear_prompt_line
 	[[ -n "$name" ]] || return
 	printf '' >"$PLAYLIST_DIR/$name.list"
 }
@@ -624,22 +697,40 @@ settings_menu() {
 	while true; do
 		choice=$(printf 'SEARCH_RESULTS (%s)\nUSE_HISTORY (%s)\nSHOW_THUMBNAILS (%s)\nYTM_LEGACY_MODE (%s)\nYTM_YTDLP_ARGS (%s)\nYTM_YTDLP_EXTRACTOR_ARGS (%s)\nYTM_THUMB_RENDERER (%s)\nBack\n' "$SEARCH_RESULTS" "$USE_HISTORY" "$SHOW_THUMBNAILS" "$LEGACY_MODE" "${YTM_YTDLP_ARGS:-unset}" "${YTDLP_EXTRACTOR_ARGS:-default}" "${FORCED_RENDERER:-auto}" | fzf --prompt="settings > ") || return
 		case "$choice" in
-			SEARCH_RESULTS*) read -rp "Results count: " SEARCH_RESULTS ;;
+			SEARCH_RESULTS*)
+				local input=""
+				read -rp "Results count: " input || true
+				clear_prompt_line
+				[[ -n "$input" ]] && SEARCH_RESULTS=$input
+				;;
 			USE_HISTORY*) USE_HISTORY=$((1-USE_HISTORY)) ;;
 			SHOW_THUMBNAILS*) SHOW_THUMBNAILS=$((1-SHOW_THUMBNAILS)) ;;
 			YTM_LEGACY_MODE*) LEGACY_MODE=$((1-LEGACY_MODE)) ;;
-			YTM_YTDLP_ARGS*) read -rp "Extra yt-dlp args: " input && YTM_YTDLP_ARGS="$input" ;;
-			YTM_YTDLP_EXTRACTOR_ARGS*) read -rp "Extractor args (blank for default): " input && YTDLP_EXTRACTOR_ARGS="$input" ;;
-			YTM_THUMB_RENDERER*) read -rp "Preferred previewer (kitty/wezterm/icat/img2sixel/chafa/viu/jp2a/img2txt/none/auto): " input && FORCED_RENDERER="$input" ;;
+			YTM_YTDLP_ARGS*)
+				local input=""
+				read -rp "Extra yt-dlp args: " input || true
+				clear_prompt_line
+				YTM_YTDLP_ARGS="$input"
+				;;
+			YTM_YTDLP_EXTRACTOR_ARGS*)
+				local input=""
+				read -rp "Extractor args (blank for default): " input || true
+				clear_prompt_line
+				YTDLP_EXTRACTOR_ARGS="$input"
+				;;
+			YTM_THUMB_RENDERER*)
+				local input=""
+				read -rp "Preferred previewer (kitty/wezterm/icat/img2sixel/chafa/viu/jp2a/img2txt/none/auto): " input || true
+				clear_prompt_line
+				FORCED_RENDERER=$(normalize_renderer "$input")
+				;;
 			*) save_settings; return ;;
 		esac
 		refresh_extra_args
 		if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 			YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
 		fi
-		if [[ "$FORCED_RENDERER" == "" ]]; then
-			FORCED_RENDERER="auto"
-		fi
+		FORCED_RENDERER=$(normalize_renderer "$FORCED_RENDERER")
 		select_thumbnail_renderer
 		save_settings
 	done

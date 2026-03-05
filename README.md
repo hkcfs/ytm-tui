@@ -168,6 +168,7 @@ Environment variables:
 - `YTM_YTDLP_EXTRACTOR_ARGS` – override the default `youtube:player_client=tv_embedded` extractor args when YouTube requires a different client or PO token.
 - `YTM_LEGACY_MODE` – set to `1`/`true` to skip default extractor args entirely (not recommended; formats may be missing and JS runtime warnings will persist).
 - `YTM_THUMB_RENDERER` – force a specific previewer (`kitty`, `wezterm`, `icat`, `img2sixel`, `chafa`, `viu`, `jp2a`, `img2txt`, `none`, `auto`). Also editable inside the TUI settings menu.
+- `YTM_SUPPRESS_WARNINGS` – default `1`; set to `0` if you want to see yt-dlp warnings (the TUI hides them otherwise).
 
 Settings file (`settings.conf`):
 

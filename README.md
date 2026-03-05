@@ -60,9 +60,9 @@ Flags worth knowing:
 
 | Command | Description | Notable flags |
 |---------|-------------|---------------|
-| `ytm search [query]` | Fetches YouTube results via `yt-dlp`, optionally pipes through `fzf`, and prints or plays selections. Works non-interactively when `--no-fzf` is set. | `-l/--limit`, `--play`, `--format`, `--no-history`, `--no-fzf` |
+| `ytm search [query]` | Fetches YouTube results via `yt-dlp`, optionally pipes through `fzf`, and prints or plays selections. Works non-interactively when `--no-fzf` is set. | `-l/--limit`, `--play`, `--format`, `--select-format`, `--no-history`, `--no-fzf` |
 | `ytm tui` | Launches the Bash/fzf TUI (`scripts/ytm-tui.sh`) inside the current environment. In Docker this script is pre-copied into `/usr/local/share/ytm/`. | Honors env vars such as `YTM_CONFIG_DIR`, `YTM_YTDLP_ARGS`, `KITTY_WINDOW_ID` |
-| `ytm play [urls...]` | Send URLs (or `--playlist` entries) directly to `mpv` without re-running search. Accepts playlist names or paths plus `--format`. | `--playlist`, `--format` |
+| `ytm play [urls...]` | Send URLs (or `--playlist` entries) directly to `mpv` without re-running search. Accepts playlist names or paths plus `--format`. | `--playlist`, `--format`, `--select-format` |
 | `ytm --help` | Shows the Cobra command tree, including any additional subcommands you may add later. | `-v/--verbose` toggles extra logging |
 
 ## How To Use
@@ -72,8 +72,8 @@ Flags worth knowing:
 3. **Run the CLI for quick searches:**
    - `ytm search "lofi chill"` launches `fzf` for selection.
    - `ytm search --no-fzf --no-history` prints results directly (good for scripting or testing).
-   - `ytm search --play --limit 50` enqueues selections straight into `mpv`.
-   - `ytm play --playlist chill` or `ytm play https://youtu.be/...` bypasses search entirely and streams URLs or stored playlists via `mpv`.
+   - `ytm search --play --select-format` streams picks immediately and lets you choose an audio format via `fzf` when desired.
+   - `ytm play --playlist chill --select-format` (or `ytm play dQw4w9WgXcQ`) bypasses search entirely, accepts bare IDs/short links, and optionally prompts for a format before calling `mpv`.
 4. **Launch the full TUI:** `ytm tui` (or `docker run --rm -it ... ytm-tui tui`). The persistent layout contains:
    - Header showing the current section.
    - Left pane with `fzf` menus (Search, Playlists, Settings).
@@ -182,6 +182,7 @@ SHOW_THUMBNAILS=0
 - Kitty thumbnails not showing: ensure `SHOW_THUMBNAILS=1` in settings **and** the terminal exports `KITTY_WINDOW_ID`.
 - `mpv` IPC errors: confirm `socat` and `mpv` are installed and the socket dir (`/tmp/ytm-tui`) is writable.
 - CLI-only mode: you can use `ytm search --no-fzf` without `mpv/fzf`, but audio playback and the TUI require the dependencies listed above.
+- Need more detail? add `-v/--verbose` to CLI commands to see the exact `yt-dlp` and `mpv` invocations.
 
 Enjoy the tunes! 🎧
 

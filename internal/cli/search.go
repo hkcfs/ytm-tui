@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -32,6 +31,7 @@ func init() {
 	searchCmd.Flags().Bool("no-fzf", false, "print JSON results instead of launching fzf")
 	searchCmd.Flags().Bool("play", false, "immediately enqueue the selected tracks in mpv")
 	searchCmd.Flags().String("format", "", "yt-dlp format selector (default: bestaudio)")
+	searchCmd.Flags().Bool("select-format", false, "choose audio format interactively before playback")
 }
 
 func runSearch(cmd *cobra.Command, args []string) error {
@@ -66,6 +66,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	spin.Start()
 	videos, err := search.Search(query, limit, options)
 	spin.Stop()
+	logVerbose(cmd.ErrOrStderr(), "search query=%q limit=%d legacy=%v extractor=%q extra=%q", query, limit, options.Legacy, options.ExtractorArgs, strings.Join(options.ExtraArgs, " "))
 	if err != nil {
 		return err
 	}
@@ -102,6 +103,16 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	formatSelector, _ := cmd.Flags().GetString("format")
+	selectFormatFlag, _ := cmd.Flags().GetBool("select-format")
+	if playFlag && selectFormatFlag && len(urls) > 0 {
+		selected, err := selectFormatInteractive(cmd, urls[0], options)
+		if err != nil {
+			return err
+		}
+		if selected != "" {
+			formatSelector = selected
+		}
+	}
 	return enqueueWithMPV(cmd, urls, formatSelector)
 }
 
@@ -175,7 +186,52 @@ func enqueueWithMPV(cmd *cobra.Command, urls []string, format string) error {
 	mpvCmd := exec.Command("mpv", args...)
 	mpvCmd.Stdout = cmd.OutOrStdout()
 	mpvCmd.Stderr = cmd.ErrOrStderr()
+	logVerbose(cmd.ErrOrStderr(), "mpv %v", args)
 	return mpvCmd.Run()
+}
+
+func selectFormatInteractive(cmd *cobra.Command, url string, opts search.Options) (string, error) {
+	if _, err := exec.LookPath("fzf"); err != nil {
+		return "", fmt.Errorf("fzf is required for format selection: %w", err)
+	}
+	spin := newSpinner(cmd.ErrOrStderr(), "Fetching formats")
+	spin.Start()
+	formats, err := search.Formats(url, opts)
+	spin.Stop()
+	if err != nil {
+		return "", err
+	}
+	if len(formats) == 0 {
+		return "", nil
+	}
+	var buf bytes.Buffer
+	for _, f := range formats {
+		fmt.Fprintf(&buf, "%s\t%s\t%s\t%s\n", f.ID, f.Ext, f.Bitrate, f.Note)
+	}
+	preview := `awk -F '	' '{printf "Format: %s\nExt: %s\nBitrate: %s\nNote: %s\n", $1, $2, $3, $4}'`
+	fzfCmd := exec.Command("fzf",
+		"--prompt=format> ",
+		"--delimiter=\t",
+		"--with-nth=1,2,3",
+		"--preview", preview,
+		"--preview-window=right,50%",
+	)
+	fzfCmd.Stdin = &buf
+	var out bytes.Buffer
+	fzfCmd.Stdout = &out
+	fzfCmd.Stderr = cmd.ErrOrStderr()
+	if err := fzfCmd.Run(); err != nil {
+		return "", err
+	}
+	line := strings.TrimSpace(out.String())
+	if line == "" {
+		return "", nil
+	}
+	parts := strings.Split(line, "\t")
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return parts[0], nil
 }
 
 func buildSearchOptions(settings config.Settings) search.Options {
@@ -207,59 +263,4 @@ func splitArgs(raw string) []string {
 func parseBoolEnv(v string) bool {
 	v = strings.ToLower(strings.TrimSpace(v))
 	return v == "1" || v == "true" || v == "yes" || v == "on"
-}
-
-type spinner struct {
-	writer  io.Writer
-	message string
-	stop    chan struct{}
-	done    chan struct{}
-	chars   []rune
-}
-
-func newSpinner(w io.Writer, message string) *spinner {
-	if w == nil {
-		return nil
-	}
-	return &spinner{
-		writer:  w,
-		message: message,
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
-		chars:   []rune{'|', '/', '-', '\\'},
-	}
-}
-
-func (s *spinner) Start() {
-	if s == nil {
-		return
-	}
-	go func() {
-		defer close(s.done)
-		idx := 0
-		fmt.Fprintf(s.writer, "%s ", s.message)
-		for {
-			select {
-			case <-s.stop:
-				fmt.Fprintf(s.writer, "\r%s ✓\n", s.message)
-				return
-			case <-time.After(120 * time.Millisecond):
-				char := s.chars[idx%len(s.chars)]
-				fmt.Fprintf(s.writer, "\r%s %c", s.message, char)
-				idx++
-			}
-		}
-	}()
-}
-
-func (s *spinner) Stop() {
-	if s == nil {
-		return
-	}
-	select {
-	case <-s.done:
-		return
-	case s.stop <- struct{}{}:
-		<-s.done
-	}
 }

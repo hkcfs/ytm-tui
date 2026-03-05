@@ -25,15 +25,22 @@ func init() {
 	rootCmd.AddCommand(playCmd)
 	playCmd.Flags().StringP("playlist", "p", "", "Playlist name or path to play")
 	playCmd.Flags().String("format", "", "yt-dlp format selector (default: bestaudio)")
+	playCmd.Flags().Bool("select-format", false, "choose audio format interactively before playback")
 }
 
 func runPlay(cmd *cobra.Command, args []string) error {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return err
+	}
 	paths, err := config.EnsurePaths()
 	if err != nil {
 		return err
 	}
 	playlistName, _ := cmd.Flags().GetString("playlist")
 	formatSelector, _ := cmd.Flags().GetString("format")
+	selectFormatFlag, _ := cmd.Flags().GetBool("select-format")
+	options := buildSearchOptions(settings)
 	var urls []string
 	for _, arg := range args {
 		url, err := normalizeInputToURL(arg)
@@ -57,6 +64,16 @@ func runPlay(cmd *cobra.Command, args []string) error {
 	if len(urls) == 0 {
 		return errors.New("provide URLs or --playlist")
 	}
+	if selectFormatFlag && len(urls) > 0 {
+		selected, err := selectFormatInteractive(cmd, urls[0], options)
+		if err != nil {
+			return err
+		}
+		if selected != "" {
+			formatSelector = selected
+		}
+	}
+	logVerbose(cmd.ErrOrStderr(), "play urls=%d format=%s", len(urls), formatSelector)
 	return enqueueWithMPV(cmd, urls, formatSelector)
 }
 

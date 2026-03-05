@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+set -Euo pipefail
 
 APP_NAME="YTM"
 CONFIG_ROOT="${YTM_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/ytm-tui}"
@@ -453,7 +453,11 @@ list_playlists() {
 
 edit_playlist() {
 	list_playlists
-	[[ ${#PLAYLISTS[@]} -gt 0 ]] || { echo "No playlists"; return; }
+	if [[ ${#PLAYLISTS[@]} -eq 0 ]]; then
+		printf "No playlists yet. Create one first.\n"
+		sleep 1
+		return 0
+	fi
 	local file=$(printf '%s\n' "${PLAYLISTS[@]}" | fzf --prompt="select playlist > ") || return
 	file="$PLAYLIST_DIR/$file"
 	local actions=("Add Videos" "Delete Videos" "Reorder" "Back")
@@ -480,7 +484,11 @@ search_flow_add() {
 delete_videos() {
 	local file="$1"
 	mapfile -t entries <"$file"
-	[[ ${#entries[@]} -gt 0 ]] || return
+	if [[ ${#entries[@]} -eq 0 ]]; then
+		printf "Playlist is empty.\n"
+		sleep 1
+		return 0
+	fi
 	mapfile -t to_remove < <(printf '%s\n' "${entries[@]}" | nl -ba | fzf --multi --prompt="delete > " | cut -f2-)
 	[[ ${#to_remove[@]} -gt 0 ]] || return
 	: >"$file"
@@ -496,7 +504,11 @@ delete_videos() {
 reorder_videos() {
 	local file="$1"
 	mapfile -t entries <"$file"
-	[[ ${#entries[@]} -gt 0 ]] || return
+	if [[ ${#entries[@]} -eq 0 ]]; then
+		printf "Playlist is empty.\n"
+		sleep 1
+		return 0
+	fi
 	local temp
 	temp=$(mktemp)
 	printf '%s\n' "${entries[@]}" >"$temp"
@@ -513,17 +525,29 @@ reorder_videos() {
 
 delete_playlist() {
 	list_playlists
-	[[ ${#PLAYLISTS[@]} -gt 0 ]] || return
+	if [[ ${#PLAYLISTS[@]} -eq 0 ]]; then
+		printf "No playlists to delete.\n"
+		sleep 1
+		return 0
+	fi
 	local file=$(printf '%s\n' "${PLAYLISTS[@]}" | fzf --prompt="delete playlist > ") || return
 	rm -f "$PLAYLIST_DIR/$file"
 }
 
 play_playlist() {
 	list_playlists
-	[[ ${#PLAYLISTS[@]} -gt 0 ]] || return
+	if [[ ${#PLAYLISTS[@]} -eq 0 ]]; then
+		printf "No playlists yet. Create one first.\n"
+		sleep 1
+		return 0
+	fi
 	local file=$(printf '%s\n' "${PLAYLISTS[@]}" | fzf --prompt="play playlist > ") || return
 	mapfile -t urls < <(cut -d'|' -f1 "$PLAYLIST_DIR/$file")
-	[[ ${#urls[@]} -gt 0 ]] || return
+	if [[ ${#urls[@]} -eq 0 ]]; then
+		printf "Playlist %s is empty.\n" "$file"
+		sleep 1
+		return 0
+	fi
 	FORMAT_ID=bestaudio
 	launch_mpv "${urls[@]}"
 	draw_playback_status

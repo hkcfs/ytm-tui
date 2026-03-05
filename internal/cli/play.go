@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -34,15 +35,24 @@ func runPlay(cmd *cobra.Command, args []string) error {
 	playlistName, _ := cmd.Flags().GetString("playlist")
 	formatSelector, _ := cmd.Flags().GetString("format")
 	var urls []string
-	if len(args) > 0 {
-		urls = append(urls, args...)
-	}
-	if playlistName != "" {
-		playlistURLs, err := loadPlaylistURLs(paths, playlistName)
+	for _, arg := range args {
+		url, err := normalizeInputToURL(arg)
 		if err != nil {
 			return err
 		}
-		urls = append(urls, playlistURLs...)
+		urls = append(urls, url)
+	}
+	if playlistName != "" {
+		playlistURLs, err := loadPlaylistFile(paths, playlistName)
+		if err != nil {
+			if url, normalizeErr := normalizeInputToURL(playlistName); normalizeErr == nil {
+				urls = append(urls, url)
+			} else {
+				return err
+			}
+		} else {
+			urls = append(urls, playlistURLs...)
+		}
 	}
 	if len(urls) == 0 {
 		return errors.New("provide URLs or --playlist")
@@ -50,7 +60,7 @@ func runPlay(cmd *cobra.Command, args []string) error {
 	return enqueueWithMPV(cmd, urls, formatSelector)
 }
 
-func loadPlaylistURLs(paths config.Paths, name string) ([]string, error) {
+func loadPlaylistFile(paths config.Paths, name string) ([]string, error) {
 	path, err := resolvePlaylistPath(paths, name)
 	if err != nil {
 		return nil, err
@@ -99,4 +109,35 @@ func resolvePlaylistPath(paths config.Paths, name string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("playlist not found: %s", name)
+}
+
+var videoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
+
+var playlistPrefixes = []string{"PL", "UU", "OL", "LL", "FL", "RD"}
+
+func normalizeInputToURL(input string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return "", errors.New("empty input")
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return trimmed, nil
+	}
+	if strings.HasPrefix(lower, "youtu.be/") {
+		return "https://" + trimmed, nil
+	}
+	if strings.HasPrefix(lower, "www.youtube.com") || strings.HasPrefix(lower, "youtube.com") {
+		return "https://" + trimmed, nil
+	}
+	if videoIDPattern.MatchString(trimmed) {
+		return "https://www.youtube.com/watch?v=" + trimmed, nil
+	}
+	upper := strings.ToUpper(trimmed)
+	for _, prefix := range playlistPrefixes {
+		if strings.HasPrefix(upper, prefix) {
+			return "https://www.youtube.com/playlist?list=" + trimmed, nil
+		}
+	}
+	return "", fmt.Errorf("unable to interpret input: %s", input)
 }

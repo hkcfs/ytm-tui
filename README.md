@@ -146,6 +146,7 @@ SHOW_THUMBNAILS=0
 - Missing binaries? run `make doctor` (or manually ensure deps listed above).
 - Kitty thumbnails not showing: ensure `SHOW_THUMBNAILS=1` in settings **and** the terminal exports `KITTY_WINDOW_ID`.
 - `mpv` IPC errors: confirm `socat` and `mpv` are installed and the socket dir (`/tmp/ytm-tui`) is writable.
+- CLI-only mode: you can use `ytm search --no-fzf` without `mpv/fzf`, but audio playback and the TUI require the dependencies listed above.
 
 Enjoy the tunes! 🎧
 

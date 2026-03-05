@@ -38,9 +38,7 @@ docker cp "$ROOT_DIR/." "$CONTAINER_ID:/workspace"
 docker start -a "$CONTAINER_ID"
 docker cp "$CONTAINER_ID:/workspace/build/ytm" "$TMP_DIR/ytm"
 
-cp "$ROOT_DIR/scripts/ytm-tui.sh" "$TMP_DIR/ytm-tui.sh"
-
-tar -czf "$DIST_DIR/$ARCHIVE_NAME" -C "$TMP_DIR" ytm ytm-tui.sh
+tar -czf "$DIST_DIR/$ARCHIVE_NAME" -C "$TMP_DIR" ytm
 sha256sum "$DIST_DIR/$ARCHIVE_NAME" >"$DIST_DIR/$ARCHIVE_NAME.sha256"
 
 echo "[build-static-bin] Artifact written to $DIST_DIR/$ARCHIVE_NAME"

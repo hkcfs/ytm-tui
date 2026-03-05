@@ -1,15 +1,20 @@
 package config
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 const (
 	defaultSearchResults = 25
+	settingsConfName     = "settings.conf"
+	legacySettingsJSON   = "settings.json"
 )
 
 // Settings holds user preferences that mirror the spec's settings menu.
@@ -36,7 +41,7 @@ func EnsurePaths() (Paths, error) {
 	}
 	paths := Paths{
 		ConfigDir:    configDir,
-		SettingsFile: filepath.Join(configDir, "settings.json"),
+		SettingsFile: filepath.Join(configDir, settingsConfName),
 		HistoryFile:  filepath.Join(configDir, "history.log"),
 		PlaylistsDir: filepath.Join(configDir, "playlists"),
 		SocketsDir:   filepath.Join(os.TempDir(), "ytm-tui"),
@@ -55,18 +60,21 @@ func LoadSettings() (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	data, err := os.ReadFile(paths.SettingsFile)
-	if errors.Is(err, os.ErrNotExist) {
-		return defaultSettings(), nil
+	settings, err := readConf(paths.SettingsFile)
+	if err == nil {
+		return normalize(settings), nil
 	}
-	if err != nil {
-		return Settings{}, fmt.Errorf("read settings: %w", err)
+	if !errors.Is(err, os.ErrNotExist) {
+		return Settings{}, err
 	}
-	var settings Settings
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return Settings{}, fmt.Errorf("parse settings: %w", err)
+	// Fallback: attempt to migrate legacy JSON if present
+	legacyPath := filepath.Join(paths.ConfigDir, legacySettingsJSON)
+	legacy, lerr := readLegacyJSON(legacyPath)
+	if lerr == nil {
+		_ = SaveSettings(legacy) // best-effort migration
+		return normalize(legacy), nil
 	}
-	return normalize(settings), nil
+	return defaultSettings(), nil
 }
 
 // SaveSettings persists the provided settings.
@@ -76,12 +84,17 @@ func SaveSettings(s Settings) error {
 		return err
 	}
 	s = normalize(s)
-	bytes, err := json.MarshalIndent(s, "", "  ")
+	file, err := os.OpenFile(paths.SettingsFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		return fmt.Errorf("marshal settings: %w", err)
-	}
-	if err := os.WriteFile(paths.SettingsFile, bytes, 0o644); err != nil {
 		return fmt.Errorf("write settings: %w", err)
+	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	fmt.Fprintf(writer, "SEARCH_RESULTS=%d\n", s.SearchResults)
+	fmt.Fprintf(writer, "USE_HISTORY=%d\n", boolToInt(s.UseHistory))
+	fmt.Fprintf(writer, "SHOW_THUMBNAILS=%d\n", boolToInt(s.ShowThumbnails))
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("flush settings: %w", err)
 	}
 	return nil
 }
@@ -95,6 +108,66 @@ func normalize(s Settings) Settings {
 		s.SearchResults = defaultSearchResults
 	}
 	return s
+}
+
+func readConf(path string) (Settings, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return Settings{}, err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	settings := defaultSettings()
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch key {
+		case "SEARCH_RESULTS":
+			if n, err := strconv.Atoi(value); err == nil {
+				settings.SearchResults = n
+			}
+		case "USE_HISTORY":
+			settings.UseHistory = parseBool(value)
+		case "SHOW_THUMBNAILS":
+			settings.ShowThumbnails = parseBool(value)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return Settings{}, fmt.Errorf("parse settings.conf: %w", err)
+	}
+	return settings, nil
+}
+
+func readLegacyJSON(path string) (Settings, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Settings{}, err
+	}
+	var legacy Settings
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return Settings{}, err
+	}
+	return legacy, nil
+}
+
+func parseBool(value string) bool {
+	value = strings.ToLower(value)
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func resolveConfigDir() (string, error) {

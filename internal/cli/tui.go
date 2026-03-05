@@ -1,23 +1,25 @@
 package cli
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	"github.com/opencode/ytm-tui/scripts"
 )
 
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
 	Short: "Launch the Bash+fzf TUI",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		script, err := resolveTUIScript()
+		scriptPath, cleanup, err := prepareTUIScript()
 		if err != nil {
 			return err
 		}
-		bashCmd := exec.Command("bash", script)
+		defer cleanup()
+		bashCmd := exec.Command("bash", scriptPath)
 		bashCmd.Stdout = cmd.OutOrStdout()
 		bashCmd.Stderr = cmd.ErrOrStderr()
 		bashCmd.Stdin = cmd.InOrStdin()
@@ -30,29 +32,28 @@ func init() {
 	rootCmd.AddCommand(tuiCmd)
 }
 
-func resolveTUIScript() (string, error) {
-	var candidates []string
+func prepareTUIScript() (string, func(), error) {
 	if custom := os.Getenv("YTM_TUI_SCRIPT"); custom != "" {
-		candidates = append(candidates, custom)
+		return custom, func() {}, nil
 	}
-	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(cwd, "scripts", "ytm-tui.sh"))
+	file, err := os.CreateTemp("", "ytm-tui-*.sh")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("create temp script: %w", err)
 	}
-	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-		candidates = append(candidates,
-			filepath.Join(exeDir, "..", "scripts", "ytm-tui.sh"),
-			filepath.Join(exeDir, "ytm-tui.sh"),
-		)
+	if _, err := file.WriteString(scripts.TUIScript); err != nil {
+		path := file.Name()
+		file.Close()
+		os.Remove(path)
+		return "", func() {}, fmt.Errorf("write temp script: %w", err)
 	}
-	candidates = append(candidates, "/usr/local/share/ytm/ytm-tui.sh")
-	for _, path := range candidates {
-		if path == "" {
-			continue
-		}
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return filepath.Clean(path), nil
-		}
+	if err := file.Chmod(0o755); err != nil {
+		path := file.Name()
+		file.Close()
+		os.Remove(path)
+		return "", func() {}, fmt.Errorf("chmod temp script: %w", err)
 	}
-	return "", errors.New("could not find ytm-tui.sh; set YTM_TUI_SCRIPT")
+	path := file.Name()
+	file.Close()
+	cleanup := func() { _ = os.Remove(path) }
+	return path, cleanup, nil
 }

@@ -12,6 +12,7 @@ Go-backed CLI plus Bash/fzf TUI for searching, queueing, and playing YouTube aud
 - **Settings UI:** TUI sliders/toggles for `SEARCH_RESULTS`, `USE_HISTORY`, and `SHOW_THUMBNAILS`, persisted to `settings.conf`.
 - **Kitty thumbnails:** When `SHOW_THUMBNAILS=1` and Kitty is detected, previews render via `kitty +kitten icat`.
 - **Docker-ready:** Multi-stage image ships Go binary plus all runtime deps for reproducible usage.
+- **Single-file releases:** The Bash TUI (`ytm-tui.sh`) is embedded with `//go:embed`, so the published static binary is truly standalone.
 
 ## Specification Reference
 
@@ -150,3 +151,4 @@ Enjoy the tunes! 🎧
 
 - `build-static-bin.sh` powers the release packaging: it runs inside a Dockerized Go toolchain, emits a static binary, bundles `ytm-tui.sh`, and drops the compressed artifact plus `.sha256` into `dist/`.
 - `.github/workflows/release.yml` runs automatically on tags matching `v*`, invokes the script, and uploads the tarball/checksum to the GitHub Release page.
+- Release artifacts contain just the `ytm` binary (plus checksum) because the embedded TUI script travels inside the executable.

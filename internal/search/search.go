@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -17,11 +16,19 @@ import (
 // Video mirrors the structured search results we display.
 const defaultExtractorArgs = "youtube:player_client=tv_embedded"
 
-var (
-	extraYTDLPArgs     = parseExtraYTDLPArgs()
-	ytDLPExtractorArgs = resolveExtractorArgs()
-	legacyMode         = parseLegacyMode()
-)
+// Options configures how yt-dlp commands are built.
+type Options struct {
+	ExtraArgs     []string
+	ExtractorArgs string
+	Legacy        bool
+}
+
+func applyDefaults(opts Options) Options {
+	if opts.ExtractorArgs == "" && !opts.Legacy {
+		opts.ExtractorArgs = defaultExtractorArgs
+	}
+	return opts
+}
 
 type Video struct {
 	ID              string      `json:"id"`
@@ -54,53 +61,25 @@ type Format struct {
 
 var shortsRegex = regexp.MustCompile(`/shorts/`)
 
-func parseExtraYTDLPArgs() []string {
-	raw := strings.TrimSpace(os.Getenv("YTM_YTDLP_ARGS"))
-	if raw == "" {
-		return nil
-	}
-	return strings.Fields(raw)
-}
-
-func resolveExtractorArgs() string {
-	if custom := strings.TrimSpace(os.Getenv("YTM_YTDLP_EXTRACTOR_ARGS")); custom != "" {
-		return custom
-	}
-	return defaultExtractorArgs
-}
-
-func parseLegacyMode() bool {
-	value := strings.TrimSpace(os.Getenv("YTM_LEGACY_MODE"))
-	if value == "" {
-		return false
-	}
-	value = strings.ToLower(value)
-	return value == "1" || value == "true" || value == "yes" || value == "on"
-}
-
-func addExtraYTDLPArgs(base []string, trailing ...string) []string {
-	args := make([]string, 0, len(base)+len(extraYTDLPArgs)+len(trailing))
-	args = append(args, base...)
-	args = append(args, extraYTDLPArgs...)
-	args = append(args, trailing...)
-	return args
-}
-
 // Search queries YouTube through yt-dlp and returns a filtered list of videos, omitting shorts.
-func Search(query string, limit int) ([]Video, error) {
+func Search(query string, limit int, opts Options) ([]Video, error) {
+	opts = applyDefaults(opts)
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("query cannot be empty")
 	}
-	baseArgs := []string{
+	args := []string{
 		"--dump-json",
 		"--skip-download",
 		"--no-playlist",
 		"--default-search", "ytsearch",
 	}
-	if !legacyMode && ytDLPExtractorArgs != "" {
-		baseArgs = append(baseArgs, "--extractor-args", ytDLPExtractorArgs)
+	if !opts.Legacy && opts.ExtractorArgs != "" {
+		args = append(args, "--extractor-args", opts.ExtractorArgs)
 	}
-	args := addExtraYTDLPArgs(baseArgs, fmt.Sprintf("ytsearch%d:%s", limit, query))
+	if len(opts.ExtraArgs) > 0 {
+		args = append(args, opts.ExtraArgs...)
+	}
+	args = append(args, fmt.Sprintf("ytsearch%d:%s", limit, query))
 	cmd := exec.Command("yt-dlp", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -137,15 +116,16 @@ func Search(query string, limit int) ([]Video, error) {
 }
 
 // Formats fetches available audio-only formats for the given URL.
-func Formats(url string) ([]Format, error) {
-	baseArgs := []string{
-		"--dump-json",
-		"--skip-download",
+func Formats(url string, opts Options) ([]Format, error) {
+	opts = applyDefaults(opts)
+	args := []string{"--dump-json", "--skip-download"}
+	if !opts.Legacy && opts.ExtractorArgs != "" {
+		args = append(args, "--extractor-args", opts.ExtractorArgs)
 	}
-	if !legacyMode && ytDLPExtractorArgs != "" {
-		baseArgs = append(baseArgs, "--extractor-args", ytDLPExtractorArgs)
+	if len(opts.ExtraArgs) > 0 {
+		args = append(args, opts.ExtraArgs...)
 	}
-	args := addExtraYTDLPArgs(baseArgs, url)
+	args = append(args, url)
 	cmd := exec.Command("yt-dlp", args...)
 	out, err := cmd.Output()
 	if err != nil {

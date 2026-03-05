@@ -60,7 +60,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if settings.UseHistory && !noHistory {
 		_ = history.Append(paths.HistoryFile, query)
 	}
-	videos, err := search.Search(query, limit)
+	options := buildSearchOptions(settings)
+	videos, err := search.Search(query, limit, options)
 	if err != nil {
 		return err
 	}
@@ -171,4 +172,35 @@ func enqueueWithMPV(cmd *cobra.Command, urls []string, format string) error {
 	mpvCmd.Stdout = cmd.OutOrStdout()
 	mpvCmd.Stderr = cmd.ErrOrStderr()
 	return mpvCmd.Run()
+}
+
+func buildSearchOptions(settings config.Settings) search.Options {
+	opts := search.Options{
+		ExtraArgs:     splitArgs(settings.YTDLPArgs),
+		ExtractorArgs: settings.ExtractorArgs,
+		Legacy:        settings.LegacyMode,
+	}
+	if env := strings.TrimSpace(os.Getenv("YTM_YTDLP_ARGS")); env != "" {
+		opts.ExtraArgs = splitArgs(env)
+	}
+	if env := strings.TrimSpace(os.Getenv("YTM_YTDLP_EXTRACTOR_ARGS")); env != "" {
+		opts.ExtractorArgs = env
+	}
+	if env := strings.TrimSpace(os.Getenv("YTM_LEGACY_MODE")); env != "" {
+		opts.Legacy = parseBoolEnv(env)
+	}
+	return opts
+}
+
+func splitArgs(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	return strings.Fields(raw)
+}
+
+func parseBoolEnv(v string) bool {
+	v = strings.ToLower(strings.TrimSpace(v))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
 }

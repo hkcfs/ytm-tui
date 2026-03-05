@@ -26,11 +26,13 @@ if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 	YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
 fi
 
+THUMB_RENDERER="none"
+
 yt_dlp() {
 	command yt-dlp "${EXTRA_YTDLP_ARGS[@]}" "$@"
 }
 
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 cleanup() {
 	if [[ -S "$MPV_SOCKET" ]]; then
@@ -94,6 +96,35 @@ load_settings() {
 		done < "$SETTINGS_FILE"
 	else
 		save_settings
+	fi
+	refresh_extra_args
+	if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
+		YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
+	fi
+	select_thumbnail_renderer
+}
+
+refresh_extra_args() {
+	EXTRA_YTDLP_ARGS=()
+	if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
+		IFS=' ' read -r -a EXTRA_YTDLP_ARGS <<<"${YTM_YTDLP_ARGS}"
+	fi
+}
+
+select_thumbnail_renderer() {
+	THUMB_RENDERER="none"
+	if [[ "$SHOW_THUMBNAILS" == "1" ]]; then
+		if [[ "$HAVE_KITTY" == "1" && -n "$KITTY_WINDOW_ID" ]]; then
+			THUMB_RENDERER="kitty"
+		elif command -v chafa >/dev/null 2>&1; then
+			THUMB_RENDERER="chafa"
+		elif command -v viu >/dev/null 2>&1; then
+			THUMB_RENDERER="viu"
+		elif command -v jp2a >/dev/null 2>&1; then
+			THUMB_RENDERER="jp2a"
+		elif command -v img2txt >/dev/null 2>&1; then
+			THUMB_RENDERER="img2txt"
+		fi
 	fi
 }
 
@@ -162,27 +193,48 @@ search_videos() {
 
 fzf_select() {
 	local preview_script
-	preview_script=$(cat <<'PVS'
+preview_script=$(cat <<'PVS'
 function human(){
 	local n=$1
 	if (( n > 1000000 )); then printf "%.1fM" "$(awk -v n=$n 'BEGIN{print n/1000000}')"; elif (( n > 1000 )); then printf "%.1fk" "$(awk -v n=$n 'BEGIN{print n/1000}')"; else printf "%s" "$n"; fi
 }
 IFS=$'\t' read -r idx title channel duration views url thumb <<<"{}"
-printf "Index: %s\nTitle: %s\nChannel: %s\nDuration: %s\nViews: %s\nURL: %s\n" "$idx" "$title" "$channel" "$duration" "$(human "$views")" "$url"
-if [[ "$SHOW_THUMBNAILS" == "1" && "$HAVE_KITTY" == "1" && -n "$thumb" && -n "$KITTY_WINDOW_ID" ]]; then
-	cache="$TMPDIR/ytm-thumb-$idx.jpg"
+if [[ "$SHOW_THUMBNAILS" == "1" && -n "$thumb" && "$THUMB_RENDERER" != "none" ]]; then
+	cache="${TMPDIR:-/tmp}/ytm-thumb-$idx.jpg"
 	if [[ ! -f "$cache" ]]; then
 		curl -sL "$thumb" -o "$cache"
 	fi
-	kitty +kitten icat --place=40x20@0x0 "$cache" 2>/dev/null
+	case "$THUMB_RENDERER" in
+		kitty)
+			kitty +kitten icat --place=40x20@0x0 "$cache" 2>/dev/null
+			printf '\n'
+			;;
+		chafa)
+			chafa --size=40x20 "$cache"
+			printf '\n'
+			;;
+		viu)
+			viu -t 20 -w 40 "$cache" 2>/dev/null
+			printf '\n'
+			;;
+		jp2a)
+			jp2a --width=40 --height=20 "$cache"
+			printf '\n'
+			;;
+		img2txt)
+			img2txt -W 40 "$cache"
+			printf '\n'
+			;;
+		esac
 fi
+printf "Index: %s\nTitle: %s\nChannel: %s\nDuration: %s\nViews: %s\nURL: %s\n" "$idx" "$title" "$channel" "$duration" "$(human "$views")" "$url"
 PVS
 )
 	local selection_file
 	selection_file=$(mktemp)
 	printf '%s\n' "${RESULTS[@]}" | \
 	fzf --multi --prompt="ytm search > " --bind 'esc:abort' \
-		--preview "SHOW_THUMBNAILS=${SHOW_THUMBNAILS} HAVE_KITTY=${HAVE_KITTY} TMPDIR=${TMPDIR:-/tmp} bash -c '$preview_script'" \
+		--preview "SHOW_THUMBNAILS=${SHOW_THUMBNAILS} HAVE_KITTY=${HAVE_KITTY} THUMB_RENDERER=${THUMB_RENDERER} TMPDIR=${TMPDIR:-/tmp} KITTY_WINDOW_ID=${KITTY_WINDOW_ID:-} bash -c '$preview_script'" \
 		--preview-window=right,60% >"$selection_file"
 	mapfile -t SELECTION <"$selection_file"
 	rm -f "$selection_file"
@@ -233,7 +285,10 @@ mpv_next(){ mpv_cmd '{"command":["playlist-next","force"]}'; }
 mpv_prev(){ mpv_cmd '{"command":["playlist-prev","force"]}'; }
 
 playback_loop() {
-	while IFS= read -rsn1 key; do
+	while true; do
+		if ! IFS= read -rsn1 key; then
+			break
+		fi
 		case "$key" in
 			'q') mpv_cmd '{"command":["quit"]}'; break ;;
 			'p'|' ') mpv_cycle_pause ;;
@@ -423,6 +478,11 @@ settings_menu() {
 			YTM_YTDLP_EXTRACTOR_ARGS*) read -rp "Extractor args (blank for default): " input && YTDLP_EXTRACTOR_ARGS="$input" ;;
 			*) save_settings; return ;;
 		esac
+		refresh_extra_args
+		if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
+			YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
+		fi
+		select_thumbnail_renderer
 		save_settings
 	done
 }

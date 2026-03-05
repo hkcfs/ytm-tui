@@ -38,6 +38,7 @@ Install these on the host (Docker image already includes them):
 - Kitty terminal (optional) for thumbnails
 - Keep `yt-dlp` current (`yt-dlp -U`). The Docker image fetches the latest release binary automatically; host installs should be updated manually.
 - The release `ytm` binary is CGO-disabled (Go 1.26) *and* embeds `ytm-tui.sh`, so no external shell script is required at runtime.
+- Environment overrides such as `YTM_YTDLP_ARGS`, `YTM_YTDLP_EXTRACTOR_ARGS`, and `YTM_LEGACY_MODE` can be set as environment variables or persisted via the TUI settings menu (they live in `settings.conf`).
 
 ## CLI usage
 
@@ -61,12 +62,13 @@ Flags worth knowing:
 |---------|-------------|---------------|
 | `ytm search [query]` | Fetches YouTube results via `yt-dlp`, optionally pipes through `fzf`, and prints or plays selections. Works non-interactively when `--no-fzf` is set. | `-l/--limit`, `--play`, `--format`, `--no-history`, `--no-fzf` |
 | `ytm tui` | Launches the Bash/fzf TUI (`scripts/ytm-tui.sh`) inside the current environment. In Docker this script is pre-copied into `/usr/local/share/ytm/`. | Honors env vars such as `YTM_CONFIG_DIR`, `YTM_YTDLP_ARGS`, `KITTY_WINDOW_ID` |
+| `ytm play [urls...]` | Send URLs (or `--playlist` entries) directly to `mpv` without re-running search. Accepts playlist names or paths plus `--format`. | `--playlist`, `--format` |
 | `ytm --help` | Shows the Cobra command tree, including any additional subcommands you may add later. | `-v/--verbose` toggles extra logging |
 
 ## How To Use
 
 1. **Install dependencies** (native host or Docker): `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`, plus ALSA/Pulse libraries so `mpv` can play audio. Kitty terminal support is optional but required for in-pane thumbnails.
-2. **Configure yt-dlp if needed:** keep it updated (`yt-dlp -U`). If your region requires cookies or PO tokens, set `YTM_YTDLP_ARGS` / `YTM_YTDLP_EXTRACTOR_ARGS` before running `ytm`. You can opt into `YTM_LEGACY_MODE=1` to skip the default extractor entirely, but expect missing formats and JS runtime warnings.
+2. **Configure yt-dlp if needed:** keep it updated (`yt-dlp -U`). If your region requires cookies or PO tokens, set `YTM_YTDLP_ARGS` / `YTM_YTDLP_EXTRACTOR_ARGS` before running `ytm`. You can opt into `YTM_LEGACY_MODE=1` (via env or settings) to skip the default extractor entirely, but expect missing formats and JS runtime warnings.
 3. **Run the CLI for quick searches:**
    - `ytm search "lofi chill"` launches `fzf` for selection.
    - `ytm search --no-fzf --no-history` prints results directly (good for scripting or testing).
@@ -80,7 +82,7 @@ Flags worth knowing:
    - *Add Videos* reuses the Search UI and appends `URL | Title` lines to the chosen `.list` file.
    - *Delete Videos* lets you multi-select entries to drop.
    - *Reorder* binds Alt-↑/↓ to move lines (fzf reloads live).
-6. **Adjust settings:** TUI → *Settings* toggles `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`. Changes persist immediately to `~/.config/ytm-tui/settings.conf`. The Go CLI reads the same file when deciding defaults.
+6. **Adjust settings:** TUI → *Settings* toggles `SEARCH_RESULTS`, `USE_HISTORY`, `SHOW_THUMBNAILS`, `YTM_LEGACY_MODE`, plus editable text fields for `YTM_YTDLP_ARGS` and `YTM_YTDLP_EXTRACTOR_ARGS`. Changes persist immediately to `~/.config/ytm-tui/settings.conf`, and the Go CLI inherits them on each run.
 7. **Understand storage:**
    - Settings/history/playlists live under `~/.config/ytm-tui/` (override via `YTM_CONFIG_DIR`).
    - Temporary sockets/thumbnails are created in `/tmp/ytm-tui` or `$TMPDIR` and cleaned up automatically.

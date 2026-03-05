@@ -73,6 +73,7 @@ make build          # go build -o bin/ytm ./cmd/ytm
 make run            # run the binary locally (default --help)
 make lint           # gofmt + go vet (basic hygiene)
 make docker-build   # ship the container image
+./build-static-bin.sh   # produce dist/ytm-linux-amd64.tar.gz via Docker
 ```
 
 Project layout:
@@ -107,3 +108,8 @@ SHOW_THUMBNAILS=0
 - `mpv` IPC errors: confirm `socat` and `mpv` are installed and the socket dir (`/tmp/ytm-tui`) is writable.
 
 Enjoy the tunes! 🎧
+
+## CI / Releases
+
+- `build-static-bin.sh` powers the release packaging: it runs inside a Dockerized Go toolchain, emits a static binary, bundles `ytm-tui.sh`, and drops the compressed artifact plus `.sha256` into `dist/`.
+- `.github/workflows/release.yml` runs automatically on tags matching `v*`, invokes the script, and uploads the tarball/checksum to the GitHub Release page.

@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build static binary
+        run: |
+          chmod +x ./build-static-bin.sh
+          ./build-static-bin.sh
+
+      - name: Upload artifact for debugging
+        uses: actions/upload-artifact@v4
+        with:
+          name: ytm-release-assets
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256

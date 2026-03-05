@@ -11,7 +11,9 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        bash fzf yt-dlp mpv jq socat curl ca-certificates git ncurses-bin \
+        bash fzf mpv jq socat curl ca-certificates git ncurses-bin python3 \
+    && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /opt/ytm /usr/local/bin/ytm

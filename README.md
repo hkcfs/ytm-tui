@@ -19,6 +19,7 @@ Install these on the host (Docker image already includes them):
 
 - `fzf`, `yt-dlp`, `mpv`, `socat`, `jq`, `curl`, `tput`, `bash`
 - Kitty terminal (optional) for thumbnails
+- Keep `yt-dlp` current (`yt-dlp -U`). The Docker image fetches the latest release binary automatically; host installs should be updated manually.
 
 ## CLI usage
 
@@ -85,6 +86,8 @@ Environment variables:
 
 - `YTM_CONFIG_DIR` – override config root (default `~/.config/ytm-tui`).
 - `YTM_TUI_SCRIPT` – explicit path to `ytm-tui.sh` for the launcher.
+- `YTM_YTDLP_ARGS` – extra flags appended to every `yt-dlp` call (space-split, so prefer `--flag=value` when arguments contain spaces).
+- `YTM_YTDLP_EXTRACTOR_ARGS` – override the default `youtube:player_client=tv_embedded` extractor args when YouTube requires a different client or PO token.
 
 Settings file (`settings.conf`):
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -14,7 +15,12 @@ import (
 )
 
 // Video mirrors the structured search results we display.
-const ytDLPExtractorArgs = "youtube:player_client=android"
+const defaultExtractorArgs = "youtube:player_client=tv_embedded"
+
+var (
+	extraYTDLPArgs     = parseExtraYTDLPArgs()
+	ytDLPExtractorArgs = resolveExtractorArgs()
+)
 
 type Video struct {
 	ID              string      `json:"id"`
@@ -47,21 +53,43 @@ type Format struct {
 
 var shortsRegex = regexp.MustCompile(`/shorts/`)
 
+func parseExtraYTDLPArgs() []string {
+	raw := strings.TrimSpace(os.Getenv("YTM_YTDLP_ARGS"))
+	if raw == "" {
+		return nil
+	}
+	return strings.Fields(raw)
+}
+
+func resolveExtractorArgs() string {
+	if custom := strings.TrimSpace(os.Getenv("YTM_YTDLP_EXTRACTOR_ARGS")); custom != "" {
+		return custom
+	}
+	return defaultExtractorArgs
+}
+
+func addExtraYTDLPArgs(base []string, trailing ...string) []string {
+	args := make([]string, 0, len(base)+len(extraYTDLPArgs)+len(trailing))
+	args = append(args, base...)
+	args = append(args, extraYTDLPArgs...)
+	args = append(args, trailing...)
+	return args
+}
+
 // Search queries YouTube through yt-dlp and returns a filtered list of videos, omitting shorts.
 func Search(query string, limit int) ([]Video, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("query cannot be empty")
 	}
-	arg := fmt.Sprintf("ytsearch%d:%s", limit, query)
-	cmd := exec.Command(
-		"yt-dlp",
+	baseArgs := []string{
 		"--dump-json",
 		"--skip-download",
 		"--no-playlist",
 		"--default-search", "ytsearch",
 		"--extractor-args", ytDLPExtractorArgs,
-		arg,
-	)
+	}
+	args := addExtraYTDLPArgs(baseArgs, fmt.Sprintf("ytsearch%d:%s", limit, query))
+	cmd := exec.Command("yt-dlp", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
@@ -98,13 +126,13 @@ func Search(query string, limit int) ([]Video, error) {
 
 // Formats fetches available audio-only formats for the given URL.
 func Formats(url string) ([]Format, error) {
-	cmd := exec.Command(
-		"yt-dlp",
+	baseArgs := []string{
 		"--dump-json",
 		"--skip-download",
 		"--extractor-args", ytDLPExtractorArgs,
-		url,
-	)
+	}
+	args := addExtraYTDLPArgs(baseArgs, url)
+	cmd := exec.Command("yt-dlp", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("yt-dlp formats: %w", err)

@@ -22,7 +22,7 @@ if [[ -n "${YTM_YTDLP_ARGS:-}" ]]; then
 fi
 LEGACY_MODE=${YTM_LEGACY_MODE:-0}
 YTDLP_EXTRACTOR_ARGS=${YTM_YTDLP_EXTRACTOR_ARGS:-}
-FORCED_RENDERER=${YTM_THUMB_RENDERER:-}
+FORCED_RENDERER=${YTM_THUMB_RENDERER:-auto}
 if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 	YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
 fi
@@ -43,6 +43,14 @@ cleanup() {
 	fi
 	tput cnorm || true
 	stop_progress
+}
+
+normalize_bool() {
+	local value="${1,,}"
+	case "$value" in
+		1|true|yes|on) echo 1 ;;
+		*) echo 0 ;;
+	esac
 }
 
 swap_lines() {
@@ -91,9 +99,9 @@ load_settings() {
 		while IFS='=' read -r key value; do
 			case "$key" in
 				SEARCH_RESULTS) SEARCH_RESULTS=${value:-25} ;;
-				USE_HISTORY) USE_HISTORY=${value:-1} ;;
-				SHOW_THUMBNAILS) SHOW_THUMBNAILS=${value:-0} ;;
-				YTM_LEGACY_MODE) LEGACY_MODE=${value:-0} ;;
+				USE_HISTORY) USE_HISTORY=$(normalize_bool "${value:-1}") ;;
+				SHOW_THUMBNAILS) SHOW_THUMBNAILS=$(normalize_bool "${value:-0}") ;;
+				YTM_LEGACY_MODE) LEGACY_MODE=$(normalize_bool "${value:-0}") ;;
 				YTM_YTDLP_ARGS) YTM_YTDLP_ARGS=${value} ;;
 				YTM_YTDLP_EXTRACTOR_ARGS) YTDLP_EXTRACTOR_ARGS=${value} ;;
 				YTM_THUMB_RENDERER) FORCED_RENDERER=${value} ;;
@@ -105,6 +113,9 @@ load_settings() {
 	refresh_extra_args
 	if [[ -z "$YTDLP_EXTRACTOR_ARGS" && "$LEGACY_MODE" != "1" ]]; then
 		YTDLP_EXTRACTOR_ARGS="youtube:player_client=tv_embedded"
+	fi
+	if [[ -z "$FORCED_RENDERER" ]]; then
+		FORCED_RENDERER="auto"
 	fi
 	select_thumbnail_renderer
 }

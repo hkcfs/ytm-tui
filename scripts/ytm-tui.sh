@@ -29,7 +29,6 @@ fi
 
 THUMB_RENDERER="none"
 progress_pid=""
-progress_running=0
 
 yt_dlp() {
 	command yt-dlp "${EXTRA_YTDLP_ARGS[@]}" "$@"
@@ -43,6 +42,14 @@ cleanup() {
 	fi
 	tput cnorm || true
 	stop_progress
+}
+
+normalize_bool() {
+	local value="${1,,}"
+	case "$value" in
+		1|true|yes|on) echo 1 ;;
+		*) echo 0 ;;
+	esac
 }
 
 normalize_bool() {
@@ -174,11 +181,10 @@ renderer_supported() {
 show_progress() {
 	local message="$1"
 	[[ -n "$progress_pid" ]] && return
-	progress_running=1
 	(
 		local chars='|/-\\'
 		local i=0
-		while [[ $progress_running -eq 1 ]]; do
+		while true; do
 			local char=${chars:i%${#chars}:1}
 			tput sc
 			tput cup 2 0
@@ -193,7 +199,7 @@ show_progress() {
 
 stop_progress() {
 	if [[ -n "$progress_pid" ]]; then
-		progress_running=0
+		kill "$progress_pid" 2>/dev/null || true
 		wait "$progress_pid" 2>/dev/null || true
 		progress_pid=""
 		tput sc
